@@ -68,7 +68,7 @@ step exists.
   are resolved (weights, thresholds, hard gates).
 - BTC BUY/SELL and sentiment sections exist as a source-agnostic contract. The
   Finnhub adapter currently fetches only single quotes; it does not populate
-  these report sections. Sentiment and BTCB2/Neoxa adapters remain unbuilt, so
+  these report sections. Sentiment and BTCB2 adapters remain unbuilt, so
   the practice report records them as explicitly unavailable. Source selection,
   freshness limits, BLAKE2b semantics, and assessment rules remain open.
 - Report freezing is implemented, but report generation is not. Snapshot

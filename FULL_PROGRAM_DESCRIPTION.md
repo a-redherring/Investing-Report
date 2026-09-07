@@ -554,7 +554,7 @@ fixture proving the schema/validator work, not an output of any pipeline.
 1. Historical-candle ingestion + a canonical weekly-price contract
    (verify the chosen provider's actual tier/access before relying on it;
    never infer a weekly series from a single quote).
-2. BTCB2/Neoxa adapter + dedicated venue/liquidity/security/custody
+2. BTCB2 adapter + dedicated venue/liquidity/security/custody
    overlay — **gated, not scheduled**: do not build until BTCB2
    independently clears §6's gate and an operator authorizes a new
    model-version change.

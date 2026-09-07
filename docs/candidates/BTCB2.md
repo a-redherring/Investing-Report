@@ -28,8 +28,8 @@ pass; 1 fails outright; 2 and 3 remain unsourced.
 ## 2. Liquidity
 
 - **Requirement:** ≥US$250,000 trailing-30-day average daily volume,
-  aggregated across ≥2 independent, non-affiliated exchanges. Neoxa alone
-  never satisfies this.
+  aggregated across ≥2 independent, non-affiliated exchanges. A single venue
+  alone never satisfies this.
 - **Status:** TODO
 - **Evidence / source:** TODO
 - **Last reviewed:** TODO
@@ -46,7 +46,7 @@ pass; 1 fails outright; 2 and 3 remain unsourced.
 
 - **Requirement:** a self-custody path via open-source wallet software, or
   support from a recognized third-party custodian/hardware-wallet vendor.
-  Exchange-only custody (Neoxa included) does not satisfy this.
+  Exchange-only custody does not satisfy this.
 - **Status:** PASS.
 - **Evidence / source:** Operator-verified directly (2026-09-07): BTCB2 is a
   straight fork of Bitcoin with only the PoW algorithm changed, so wallet
@@ -66,7 +66,7 @@ pass; 1 fails outright; 2 and 3 remain unsourced.
   any single exchange.
 - **Status:** PASS.
 - **Evidence / source:** Operator-verified directly (2026-09-07): runs an
-  independent BLAKE2b node (not Neoxa-hosted), used to verify chain state
+  independent BLAKE2b node (not exchange-hosted), used to verify chain state
   and custody directly rather than trusting a single exchange's word for
   it. Same evidentiary-form note as criterion 4 above.
 - **Last reviewed:** 2026-09-07
@@ -81,7 +81,7 @@ pass; 1 fails outright; 2 and 3 remain unsourced.
 whether the structural vulnerabilities BTCB2 responds to are real — not
 about whether BTCB2 itself currently satisfies criteria 1-5 above (it
 doesn't, per the operational-maturity status alone). Those stay tracked
-separately. Venue/exchange-specific risk (Neoxa) is explicitly **not**
+separately. Venue/exchange-specific risk is explicitly **not**
 included here pending better-sourced evidence than currently exists;
 it belongs under criteria 2/4 once that evidence is gathered.
 

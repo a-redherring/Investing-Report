@@ -56,7 +56,7 @@ costs, strict price/report validation, schema validation, append-only
 snapshots, explicit-confirmation report freezing, the Finnhub single-quote
 adapter, and Yahoo Finance weekly-history ingestion for all 8 price-bearing
 universe assets (see the [roadmap](docs/wiki/roadmap.md)). Sentiment,
-BTCB2/Neoxa ingestion, scoring, report generation, and scheduling are not yet
+BTCB2 ingestion, scoring, report generation, and scheduling are not yet
 implemented.
 
 Secrets belong in the process environment or an external server-side secrets

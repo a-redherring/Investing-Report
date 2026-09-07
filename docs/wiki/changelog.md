@@ -3,6 +3,40 @@
 Dated log of material changes to code behavior (not every commit — just things a
 future reader would otherwise have to discover by diffing). Newest first.
 
+## 2026-09-07 — Neoxa references removed from live documentation
+
+Operator direction: remove Neoxa Exchange from the project entirely.
+Scrubbed every mention from currently-maintained documentation —
+`INVESTMENT_DECISION_SYSTEM.md` (the candidate-tracking table row, and the
+two crypto-asset-inclusion-gate criteria that used "Neoxa" as an illustrative
+example of a single venue/exchange-only custody), `docs/candidates/BTCB2.md`
+(same pattern, plus its custody/independent-verifiability evidence entries),
+`docs/wiki/configuration.md`, `docs/wiki/ingestion.md`, `docs/wiki/roadmap.md`,
+`docs/wiki/reports.md`, `README.md`, and `FULL_PROGRAM_DESCRIPTION.md`.
+
+None of the gate criteria themselves actually depended on naming Neoxa
+specifically — "Neoxa" appeared only as an illustrative example within
+already-generic rules ("a single venue never satisfies this," "exchange-only
+custody does not satisfy this"), so removing the name changes no
+requirement or pass/fail status. BTCB2's candidate-tracking table entry, which
+did assert a specific fact ("BTCB2/USDC reference pair on Neoxa Exchange"),
+now reads "no independently verified multi-venue listing established" —
+criteria 2 (liquidity) and 3 (price discovery) were already `TODO`/unsourced
+in `docs/candidates/BTCB2.md`, so this is a more accurate statement of the
+same unchanged status, not a new claim.
+
+**BTCB2's candidate tracking itself is untouched** — this was a request to
+remove Neoxa specifically, not to end BTCB2's candidacy; the crypto asset
+inclusion gate and its six criteria are unaffected.
+
+**Deliberately left unedited**, per this project's own established practice
+of not rewriting historical record: `docs/archive/` (frozen point-in-time
+build history) and every existing dated entry below in this changelog
+(each remains an accurate record of what was true when it was written,
+including the 2026-09-04 entries describing BTCB2's now-reverted
+Neoxa-listed v1.1 inclusion). No code, schema, or config change — this was
+documentation only. Full suite: 74 passed, unchanged.
+
 ## 2026-09-07 — gold vehicle decided (ASX:GOLD); historical ingestion now covers all 8 price-bearing assets
 
 Resolved `INVESTMENT_DECISION_SYSTEM.md`'s open question #5 ("How should

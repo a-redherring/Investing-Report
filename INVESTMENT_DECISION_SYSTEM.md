@@ -77,7 +77,7 @@ The universe is closed by default. Adding any asset requires an explicit model-v
 
 | Candidate | Reference | Status | Gate | Tracking |
 |---|---|---|---|---|
-| BTCB2 | BTCB2/USDC reference pair on Neoxa Exchange | Tracked as a candidate only; **not in `config/universe.yaml`**, not ranked, not reported on | Must clear the crypto asset inclusion gate below before any model-version change adds it | [`docs/candidates/BTCB2.md`](docs/candidates/BTCB2.md) |
+| BTCB2 | No independently verified multi-venue listing established (see criteria 2/3 below) | Tracked as a candidate only; **not in `config/universe.yaml`**, not ranked, not reported on | Must clear the crypto asset inclusion gate below before any model-version change adds it | [`docs/candidates/BTCB2.md`](docs/candidates/BTCB2.md) |
 
 Tracking a candidate here is not an endorsement, not a partial inclusion, and not a signal. It exists so the gate has something concrete to be checked against on a recurring basis, not so the asset accrues implicit legitimacy by being named in this document.
 
@@ -353,14 +353,13 @@ practice) with no regression in between:
    rollback, or extended outage) during that period.
 2. **Liquidity.** Trailing-30-day average daily trading volume of at least
    US$250,000, aggregated across **at least two independent, non-affiliated
-   exchanges**. Volume on a single venue — Neoxa included — never satisfies
-   this on its own.
+   exchanges**. Volume on a single venue never satisfies this on its own.
 3. **Price discovery.** At least two independent venues publish the
    reference pair, and the sampled price divergence between them is under 5%
    at report time.
 4. **Custody.** A self-custody path exists via open-source wallet software,
    or a recognized third-party custodian/hardware-wallet vendor supports the
-   asset. Exchange-only custody (Neoxa or otherwise) does not satisfy this.
+   asset. Exchange-only custody does not satisfy this.
 5. **Independent verifiability.** A public block explorer and node software
    exist independent of any single exchange, so chain state can be verified
    without trusting one venue's word for it.

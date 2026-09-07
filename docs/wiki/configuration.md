@@ -54,8 +54,8 @@ Per the design doc, this universe is closed by default: adding an asset here sho
 come with a `model_version` bump and the accompanying documentation described in
 [Changelog](changelog.md), not a silent edit. **BTCB2 is deliberately not here.**
 A prior version (v1.1) added it with `instrument_type`, `reference_pair`,
-`venue`, and `status` fields recording `BTCB2_USDC` on `neoxa.exchange`; that
-inclusion was withdrawn and the model reverted to v1.0. There's no blanket
+`venue`, and `status` fields recording a since-reverted exchange listing;
+that inclusion was withdrawn and the model reverted to v1.0. There's no blanket
 ban on non-BTC cryptocurrencies, but BTCB2 (the only candidate currently
 under consideration) is tracked in `INVESTMENT_DECISION_SYSTEM.md`'s crypto
 asset inclusion gate until it independently clears six concrete criteria

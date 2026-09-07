@@ -34,7 +34,7 @@ specification alone.
 1. ~~Add provider historical-candle ingestion and a canonical weekly-price
    contract.~~ Done for all 8 price-bearing universe assets (Yahoo Finance)
    — see above.
-2. BTCB2/Neoxa adapter and venue/liquidity/security/custody overlay: **gated,
+2. BTCB2 adapter and venue/liquidity/security/custody overlay: **gated,
    not scheduled.** Do not build this until BTCB2 independently clears the
    design doc's establishment gate (operational maturity, multi-venue
    liquidity, price discovery, security review, custody, independent

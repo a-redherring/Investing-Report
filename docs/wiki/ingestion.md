@@ -164,8 +164,8 @@ per-asset provider table, well past that point.
 
 ## What's NOT here yet
 
-- **No BTCB2/Neoxa adapter.** Neither Finnhub nor Yahoo covers Neoxa
-  Exchange; nothing in this module fetches or validates BTCB2 prices. See
+- **No BTCB2 adapter.** No configured provider covers BTCB2's trading venue;
+  nothing in this module fetches or validates BTCB2 prices. See
   [`docs/candidates/BTCB2.md`](../candidates/BTCB2.md) for BTCB2's current
   status against the crypto asset inclusion gate.
 - **Not called automatically by anything.** No cron/systemd/CLI-chain invokes
