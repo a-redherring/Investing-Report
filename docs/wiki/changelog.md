@@ -3,6 +3,62 @@
 Dated log of material changes to code behavior (not every commit — just things a
 future reader would otherwise have to discover by diffing). Newest first.
 
+## 2026-09-07 — sentiment ingestion (Alternative.me crypto, CNN equity)
+
+Roadmap item 3 ("Decide and document equity/crypto sentiment providers,
+freshness rules, and unavailable-state behavior") — decided and built,
+following the same empirical-verification discipline used for the
+historical-candle providers.
+
+- **Crypto Fear & Greed: Alternative.me's `/fng/` endpoint.** Official,
+  documented, free, no key required — an easy, unambiguous choice; no other
+  candidate was seriously considered since this is the de facto standard
+  source for exactly this index.
+- **Equity Fear & Greed: CNN's Fear & Greed Index**, via its unofficial
+  chart-data endpoint (`production.dataviz.cnn.io/index/fearandgreed/graphdata`).
+  No official free alternative was found. Confirmed empirically: an
+  unauthenticated request returns the literal plain-text body `"I'm a
+  teapot. You're a bot."`, not JSON and not an HTTP error status; adding a
+  browser-like `User-Agent` and a `Referer` matching the real page
+  (`cnn.com/markets/fear-and-greed`) is enough to pass. Same
+  unofficial-endpoint risk profile already accepted for `ingestion.yahoo`
+  (no ToS/SLA), stated plainly rather than silently assumed reliable.
+
+**New `ingestion.sentiment.SentimentObservation`** (the shared contract both
+adapters produce: `value`, `category`, `provider`, `effective_at`,
+`retrieved_at`, `snapshot_id` — mirrors the report schema's
+`sentimentObservation` shape closely enough to embed directly with
+`status: "observed"` added at the point of use), **`ingestion.alternative_me.fetch_crypto_fear_greed()`**,
+and **`ingestion.cnn_fear_greed.fetch_equity_fear_greed()`**. New CLI:
+`investment-system fetch-sentiment equity|crypto` — same
+deterministic-callable/CLI-boundary pattern as `fetch-quote`/`fetch-history`,
+prints the observation or a structured error, exits 1 on any
+`IngestionError`. Neither category string is case-normalized across
+providers (Alternative.me sends Title Case, CNN sends lowercase) — passed
+through as each provider states it, not silently rewritten.
+
+Both fail closed on a reading older than a configured `max_age_seconds`:
+2 days for crypto (24/7 markets, updates daily without exception), 4 days
+for equities (accounts for a normal Friday-to-Monday weekend gap when
+equity markets are closed and CNN's index doesn't update).
+
+**Verified end-to-end against the real network**, not just fixtures: both
+`fetch-sentiment crypto` and `fetch-sentiment equity` return real, current
+readings (71/"Greed" and 41.86/"fear" respectively, as of this writing).
+
+**14 new tests** (`tests/test_ingestion_alternative_me.py`,
+`tests/test_ingestion_cnn_fear_greed.py` + fixtures under
+`tests/fixtures/alternative_me/`, `tests/fixtures/cnn_fear_greed/`),
+including a regression test locking in the exact real "teapot" bot-block
+response so it's never mistaken for a crash. Full suite: 88 passed. No new
+dependency — stdlib `urllib`, matching every other adapter.
+
+**What's still not built**: no report-generation step calls either adapter
+yet or assembles a report's `sentiment` section; no rule exists yet for how
+a sentiment reading actually modifies a ranking/BTC decision (still an open
+question in `INVESTMENT_DECISION_SYSTEM.md`); neither adapter is wired into
+any systemd unit.
+
 ## 2026-09-07 — Neoxa references removed from live documentation
 
 Operator direction: remove Neoxa Exchange from the project entirely.

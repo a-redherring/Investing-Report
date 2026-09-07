@@ -21,12 +21,14 @@ python3 -m venv .venv
 ./scripts/fedora-healthcheck.sh
 ```
 
-The healthcheck is offline. Two optional commands make real network calls:
-`fetch-quote` (requires `FINNHUB_API_KEY`; fetches one Finnhub quote) and
-`fetch-history` (no key needed; fetches weekly price history from Yahoo
-Finance for IVV, NDQ, VAS, VGS, IZZ, VAE, GOLD, and BTC). Both snapshot their raw
-response in the local append-only SQLite store. Neither creates a
-recommendation; `fetch-history`'s output CSV feeds straight into `signals`.
+The healthcheck is offline. Three optional commands make real network calls,
+none requiring a key except `fetch-quote`: `fetch-quote` (requires
+`FINNHUB_API_KEY`; fetches one Finnhub quote), `fetch-history` (fetches
+weekly price history from Yahoo Finance for IVV, NDQ, VAS, VGS, IZZ, VAE,
+GOLD, and BTC), and `fetch-sentiment` (fetches a Fear & Greed reading from
+Alternative.me or CNN). All three snapshot their raw response in the local
+append-only SQLite store. None creates a recommendation; `fetch-history`'s
+output CSV feeds straight into `signals`.
 
 Useful commands:
 
@@ -37,6 +39,7 @@ Useful commands:
 .venv/bin/investment-system snapshot-list
 FINNHUB_API_KEY=... .venv/bin/investment-system fetch-quote AAPL
 .venv/bin/investment-system fetch-history IVV
+.venv/bin/investment-system fetch-sentiment crypto
 ```
 
 ## Current scope
@@ -54,9 +57,10 @@ signal.
 Implemented foundations include weekly indicator calculations, ASX brokerage
 costs, strict price/report validation, schema validation, append-only
 snapshots, explicit-confirmation report freezing, the Finnhub single-quote
-adapter, and Yahoo Finance weekly-history ingestion for all 8 price-bearing
-universe assets (see the [roadmap](docs/wiki/roadmap.md)). Sentiment,
-BTCB2 ingestion, scoring, report generation, and scheduling are not yet
+adapter, Yahoo Finance weekly-history ingestion for all 8 price-bearing
+universe assets, and both required sentiment feeds (Alternative.me for
+crypto, CNN for equities) (see the [roadmap](docs/wiki/roadmap.md)). BTCB2
+ingestion, scoring, report generation, and scheduling are not yet
 implemented.
 
 Secrets belong in the process environment or an external server-side secrets

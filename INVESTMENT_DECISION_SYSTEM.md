@@ -192,8 +192,17 @@ Regime claims require dated evidence and should state what would falsify them.
 
 The report includes two distinct sentiment series:
 
-- **Equity Fear & Greed** for equity-market risk appetite.
+- **Equity Fear & Greed** for equity-market risk appetite. Source: CNN's
+  Fear & Greed Index, via `ingestion.cnn_fear_greed` (see
+  [`docs/wiki/ingestion.md`](docs/wiki/ingestion.md) — unofficial endpoint,
+  same provenance profile as the Yahoo Finance price-history adapter).
 - **Crypto Fear & Greed** for Bitcoin and crypto-specific risk appetite.
+  Source: Alternative.me's Fear & Greed Index, an official free API, via
+  `ingestion.alternative_me`.
+
+Both adapters exist and are tested, but no report-generation step calls
+them yet (see the [roadmap](docs/wiki/roadmap.md)) — this section still
+describes the report contract, not a currently-running pipeline.
 
 Each observation records provider, value, category, retrieval time, and effective date. The report schema is the canonical field contract; sentiment is a modifier, not a standalone trigger:
 
@@ -994,12 +1003,22 @@ Data sources/times, completed checks, warnings, commit, snapshot, and report has
   plan), Alpha Vantage (no real ASX coverage), Twelve Data (US-only free
   tier), and Stooq (bot-walled) were all empirically ruled out. See
   [Ingestion](docs/wiki/ingestion.md).
+- Sentiment providers: **Alternative.me** (crypto Fear & Greed, official
+  free API) and **CNN's Fear & Greed Index** (equity, unofficial endpoint,
+  same provenance profile as Yahoo). Both fetch and validate a single
+  observation; no report-generation step assembles them into a report yet.
+  See [Ingestion](docs/wiki/ingestion.md).
+- Neoxa Exchange is not referenced anywhere in this project. It was
+  previously named as BTCB2's only known trading venue; removed by operator
+  direction (2026-09-07) since none of the crypto asset inclusion gate's
+  criteria actually depend on naming any specific exchange. BTCB2's
+  candidacy tracking itself is unaffected.
 
 ### Remaining questions
 
 1. What exact cash product and after-tax/after-fee yield should replace the flat 5% assumption?
 2. What is the weekly bar cutoff for ASX assets versus globally traded BTC and gold?
-3. ~~Which market-data providers are authoritative for adjusted ASX history, fundamentals, macro, ATH, and sentiment?~~ Resolved for ASX/gold price history: Yahoo Finance (see "Decisions already made"). Fundamentals, macro, and sentiment providers remain open.
+3. ~~Which market-data providers are authoritative for adjusted ASX history, fundamentals, macro, ATH, and sentiment?~~ Resolved for ASX/gold price history (Yahoo Finance) and sentiment (Alternative.me/CNN) — see "Decisions already made". Fundamentals and macro providers remain open.
 4. What exact MACD parameters will Model v1.0 freeze beyond the currently implemented indicator contract?
 5. ~~How should gold be implemented: spot reference, ASX ETF, or another vehicle, and in which currency?~~ Resolved: ASX:GOLD (Global X Physical Gold, unhedged), AUD — see "Decisions already made".
 6. What are the portfolio's existing weights, contribution schedule, concentration limits, liquidity needs, and maximum acceptable drawdown?

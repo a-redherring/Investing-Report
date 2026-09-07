@@ -16,9 +16,11 @@ src/investment_system/
   snapshots.py           Append-only SQLite store for raw input snapshots
                          (SnapshotStore) — provenance, not any specific data source
   reports.py             Canonical JSON report validation, hashing, and write-once freeze
-  ingestion/              Live market-data adapters (Finnhub quotes, Yahoo weekly candles)
+  ingestion/              Live market-data adapters (Finnhub quotes, Yahoo weekly
+                         candles, Alternative.me/CNN sentiment)
     errors.py              Shared IngestionError hierarchy
-    data_sources.py         Loads config/data-sources.yaml (FinnhubConfig, YahooConfig)
+    data_sources.py         Loads config/data-sources.yaml (FinnhubConfig, YahooConfig,
+                             AlternativeMeConfig, CnnFearGreedConfig)
     finnhub.py              fetch_quote(): fetch, snapshot, validate — see ingestion.md
     candles.py               WeeklyBar: the shared weekly-price-bar contract every
                              historical adapter produces
@@ -26,16 +28,24 @@ src/investment_system/
                              OHLC history — see ingestion.md for two real data-quality
                              bugs found and fixed here (range="max" coarsening,
                              corrupted IVV.AX history)
+    sentiment.py             SentimentObservation: the shared Fear & Greed
+                             observation contract both sentiment adapters produce
+    alternative_me.py        fetch_crypto_fear_greed(): official free API, no key
+    cnn_fear_greed.py        fetch_equity_fear_greed(): unofficial endpoint, no key
+                             but needs a Referer header to avoid a bot block —
+                             see ingestion.md
   engine.py             CSV loading, wires indicators.py + config.py together,
                          exposes calculate_signals() / cost_table() / config_snapshot()
                          / validate_report()
   cli.py                 `investment-system signals|costs|config|validate-report|
                          snapshot-save|snapshot-get|snapshot-list|fetch-quote|
-                         fetch-history` commands
-config/data-sources.yaml  Finnhub base URL/API-key env var/timeouts; Yahoo base URL/User-Agent/timeout
+                         fetch-history|fetch-sentiment` commands
+config/data-sources.yaml  Finnhub/Yahoo/Alternative.me/CNN base URLs, headers,
+                         timeouts, and (Finnhub/CNN/Alternative.me) max data age
 tests/                  Unit tests for every module above, plus tests/fixtures/prices.csv
-                         and tests/fixtures/finnhub/, tests/fixtures/yahoo/ (offline
-                         response fixtures for each ingestion adapter)
+                         and tests/fixtures/finnhub/, tests/fixtures/yahoo/,
+                         tests/fixtures/alternative_me/, tests/fixtures/cnn_fear_greed/
+                         (offline response fixtures for each ingestion adapter)
 schemas/                First structural contract for frozen practice/live reports
 reports/practice/       Illustrative schema-shaped practice artifact only
 data/                   snapshots.sqlite3 lives here by default (gitignored)
@@ -49,14 +59,15 @@ docs/candidates/        Crypto-asset-inclusion-gate tracking per candidate
 The deterministic core (`indicators.py`, `costs.py`, `engine.py`'s CSV path,
 `validation.py`, `schema.py`, `reports.py`) makes no network calls and never
 will on its own — feed it a CSV/JSON, get the same output every time. As of
-`ingestion/`, the repository *also* has two opt-in adapters that make a real
+`ingestion/`, the repository *also* has four opt-in adapters that make a real
 network call: `investment-system fetch-quote <symbol>` (requires
-`FINNHUB_API_KEY`) and `investment-system fetch-history <asset>` (Yahoo
-Finance, no key needed) — both only run when explicitly invoked. Nothing
-calls either automatically; nothing in the deterministic core depends on
-them existing. `fetch-history`'s output CSV, though, plugs directly into the
-existing CSV pipeline below with no code change — see
-[Data flow](#data-flow) and [Ingestion](ingestion.md).
+`FINNHUB_API_KEY`), `investment-system fetch-history <asset>` (Yahoo
+Finance, no key needed), and `investment-system fetch-sentiment
+equity|crypto` (CNN and Alternative.me, no key needed) — all only run when
+explicitly invoked. Nothing calls any of them automatically; nothing in the
+deterministic core depends on them existing. `fetch-history`'s output CSV,
+though, plugs directly into the existing CSV pipeline below with no code
+change — see [Data flow](#data-flow) and [Ingestion](ingestion.md).
 
 ## Data flow
 
@@ -121,13 +132,28 @@ config/data-sources.yaml
                                                already reads -> feeds straight into
                                                investment-system signals with no other
                                                change; exits 1 with a structured error
-                                               on any IngestionError; GOLD/CASH rejected
-                                               outright (no configured provider mapping)
+                                               on any IngestionError; CASH rejected
+                                               outright (no price series to fetch)
+
+config/data-sources.yaml
+  -> ingestion.data_sources.load_alternative_me_config() / load_cnn_fear_greed_config()
+  -> ingestion.alternative_me.fetch_crypto_fear_greed(snapshot_store=...)      no key needed
+  -> ingestion.cnn_fear_greed.fetch_equity_fear_greed(snapshot_store=...)      no key needed
+       -> HTTP GET to each provider's endpoint (CNN needs a Referer header --
+          see ingestion.md for the exact bot-blocking behavior found)
+       -> snapshots the raw response FIRST (evidence preserved even on failure)
+       -> then validates: parses JSON, rejects a reading older than
+          max_age_seconds (2 days crypto, 4 days equity)
+       -> returns a shared SentimentObservation (ingestion.sentiment)
+  -> investment-system fetch-sentiment equity|crypto  (exits 1 with a structured
+                                                        error on any IngestionError;
+                                                        never touches rankings,
+                                                        gates, or recommendations)
 ```
 
 See [Reports and validation](reports.md) for the report contract,
 [Snapshots](snapshots.md) for the provenance store, and
-[Ingestion](ingestion.md) for the Finnhub adapter.
+[Ingestion](ingestion.md) for every adapter.
 
 `config.py` and `schema.py` resolve `config/` and `schemas/` by checking, in
 order: the `INVESTMENT_SYSTEM_CONFIG_DIR` environment variable (config only),
@@ -145,14 +171,17 @@ larger system: fundamental/regime scoring, sentiment ingestion, BTC BUY/SELL
 assessments, the MCP server, frozen JSON/Markdown reports, SQLite audit storage,
 benchmark simulation, and postmortems. Almost none of that exists in `src/` yet
 (the exceptions are the frozen-report write-once mechanism in `reports.py` and
-the Finnhub/Yahoo adapters in `ingestion/`) — this repository is still
-overwhelmingly the "Phase 1: deterministic data foundation" slice. Don't assume
-any scoring/ranking/BTC-or-sentiment-provider behavior is implemented; check
-`src/investment_system/` directly. `ingestion.finnhub.fetch_quote()` produces
-one validated quote — it does not feed `indicators.calculate()`.
-`ingestion.yahoo.fetch_weekly_history()` does feed it (via `fetch-history`'s
-CSV output), but nothing calls either adapter automatically, and neither
-touches rankings, gates, or recommendations.
+the four adapters in `ingestion/`) — this repository is still overwhelmingly
+the "Phase 1: deterministic data foundation" slice. Don't assume any
+scoring/ranking behavior is implemented; check `src/investment_system/`
+directly. `ingestion.finnhub.fetch_quote()` produces one validated quote — it
+does not feed `indicators.calculate()`. `ingestion.yahoo.fetch_weekly_history()`
+does feed it (via `fetch-history`'s CSV output).
+`ingestion.alternative_me`/`ingestion.cnn_fear_greed` produce validated
+sentiment observations, but nothing currently assembles them into a report's
+`sentiment` section — no report-generation step exists yet (see
+[Reports and validation](reports.md)). Nothing calls any adapter
+automatically, and none touch rankings, gates, or recommendations.
 
 ## CLI
 
@@ -173,4 +202,7 @@ investment-system fetch-history <asset> [--range WINDOW] [--output-dir DIR]
                                                         # Yahoo Finance weekly history for
                                                         # IVV/NDQ/VAS/VGS/IZZ/VAE/GOLD/BTC only;
                                                         # writes data/history/<ASSET>.csv
+investment-system fetch-sentiment equity|crypto        # CNN / Alternative.me; no key needed;
+                                                        # exits 1 with a structured error on
+                                                        # any failure
 ```

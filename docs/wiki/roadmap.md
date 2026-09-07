@@ -28,6 +28,13 @@ specification alone.
   real data-quality bugs found and fixed along the way, and the gold-vehicle
   decision (ASX:GOLD). CASH has no price series to fetch, by design — every
   other universe asset is now sourced.
+- Sentiment ingestion for both required series: crypto Fear & Greed
+  (`ingestion.alternative_me`, an official free API) and equity Fear & Greed
+  (`ingestion.cnn_fear_greed`, the same unofficial-but-stable provenance
+  profile as Yahoo). Both produce a validated, snapshotted
+  `SentimentObservation` — see [Ingestion](ingestion.md) and the 2026-09-07
+  [changelog](changelog.md) entry. No report-generation step exists yet to
+  call them automatically.
 
 ## Next build sequence
 
@@ -41,8 +48,11 @@ specification alone.
    verifiability, defined thesis) and an operator authorizes a new
    model-version change to re-add it. Track gate status, not adapter work,
    until then.
-3. Decide and document equity/crypto sentiment providers, freshness rules, and
-   unavailable-state behavior.
+3. ~~Decide and document equity/crypto sentiment providers, freshness rules,
+   and unavailable-state behavior.~~ Providers decided and built — see
+   above. Remaining: assessment rules for how a sentiment reading actually
+   modifies a ranking/BTC decision (still open, tracked as a "remaining
+   question" in `INVESTMENT_DECISION_SYSTEM.md`).
 4. Build deterministic feature assembly, scoring, ranking, and draft-report
    generation against the existing schema and practice fixture.
 5. Add a `monday-run` orchestration command that snapshots inputs, validates

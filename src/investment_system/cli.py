@@ -9,11 +9,18 @@ from dataclasses import asdict
 from pathlib import Path
 
 from .engine import calculate_signals, config_snapshot, cost_table, validate_report
+from .ingestion.alternative_me import fetch_crypto_fear_greed
+from .ingestion.cnn_fear_greed import fetch_equity_fear_greed
 from .ingestion.errors import IngestionError
 from .ingestion.finnhub import fetch_quote
 from .ingestion.yahoo import fetch_weekly_history as fetch_yahoo_weekly_history
 from .snapshots import DEFAULT_DB_PATH, SnapshotStore
 from .reports import freeze_report
+
+_SENTIMENT_FETCHERS = {
+    "equity": fetch_equity_fear_greed,
+    "crypto": fetch_crypto_fear_greed,
+}
 
 # Only assets with an unambiguous, already-verified provider mapping are
 # listed here. GOLD tracks ASX:GOLD (Global X Physical Gold, unhedged) --
@@ -84,6 +91,10 @@ def main() -> None:
     fetch_history.add_argument("--output-dir", default="data/history", help="directory to write <ASSET>.csv into (default: data/history)")
     fetch_history.add_argument("--db", default=None, help=f"snapshot database path (default: {DEFAULT_DB_PATH}, or $INVESTMENT_SYSTEM_SNAPSHOT_DB if set)")
 
+    fetch_sentiment = sub.add_parser("fetch-sentiment", help="fetch, validate, and snapshot a Fear & Greed reading")
+    fetch_sentiment.add_argument("kind", choices=sorted(_SENTIMENT_FETCHERS), help="which sentiment series to fetch")
+    fetch_sentiment.add_argument("--db", default=None, help=f"snapshot database path (default: {DEFAULT_DB_PATH}, or $INVESTMENT_SYSTEM_SNAPSHOT_DB if set)")
+
     args = parser.parse_args()
 
     if args.command == "signals":
@@ -151,6 +162,15 @@ def main() -> None:
             for bar in bars:
                 writer.writerow([asset, bar.date, bar.close])
         result = {"asset": asset, "provider": "yahoo", "provider_symbol": provider_symbol, "bars": len(bars), "path": str(csv_path)}
+    elif args.command == "fetch-sentiment":
+        db_path = args.db or os.environ.get("INVESTMENT_SYSTEM_SNAPSHOT_DB") or str(DEFAULT_DB_PATH)
+        fetcher = _SENTIMENT_FETCHERS[args.kind]
+        try:
+            with SnapshotStore(db_path) as store:
+                result = asdict(fetcher(snapshot_store=store))
+        except IngestionError as exc:
+            print(json.dumps({"error": type(exc).__name__, "message": str(exc)}, indent=2, sort_keys=True))
+            sys.exit(1)
     else:
         with SnapshotStore(args.db) as store:
             result = [snapshot.summary() for snapshot in store.list(source=args.source)]

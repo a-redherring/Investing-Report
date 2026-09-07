@@ -66,11 +66,15 @@ step exists.
   one is explicitly deferred until the model-v1.0 open questions in
   [`INVESTMENT_DECISION_SYSTEM.md`](../../INVESTMENT_DECISION_SYSTEM.md#current-open-questions)
   are resolved (weights, thresholds, hard gates).
-- BTC BUY/SELL and sentiment sections exist as a source-agnostic contract. The
-  Finnhub adapter currently fetches only single quotes; it does not populate
-  these report sections. Sentiment and BTCB2 adapters remain unbuilt, so
-  the practice report records them as explicitly unavailable. Source selection,
-  freshness limits, BLAKE2b semantics, and assessment rules remain open.
+- BTC BUY/SELL and sentiment sections exist as a source-agnostic contract.
+  `ingestion.alternative_me`/`ingestion.cnn_fear_greed` can now fetch a valid
+  `sentimentObservation` for each of `crypto_fear_greed`/`equity_fear_greed`
+  (see [Ingestion](ingestion.md)), but no report-generation step exists yet
+  to call them and assemble a report — the practice report still records
+  both as explicitly unavailable. BTC BUY/SELL has no adapter at all (the
+  Finnhub adapter fetches only single quotes). Assessment rules for how a
+  sentiment reading modifies a BTC/ranking decision remain open, and BLAKE2b
+  semantics remain open.
 - Report freezing is implemented, but report generation is not. Snapshot
   storage and frozen-report artifacts are both append-only and integrity-
   hashed; neither is populated automatically by a scheduled pipeline yet.

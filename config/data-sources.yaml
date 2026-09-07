@@ -10,3 +10,15 @@ sources:
     base_url: "https://query1.finance.yahoo.com/v8/finance/chart"
     user_agent: "Mozilla/5.0 (compatible; investment-decision-system/0.1)"
     timeout_seconds: 10
+  alternative_me:
+    provider: "Alternative.me"
+    base_url: "https://api.alternative.me/fng"
+    timeout_seconds: 10
+    max_age_seconds: 172800
+  cnn_fear_greed:
+    provider: "CNN"
+    base_url: "https://production.dataviz.cnn.io/index/fearandgreed/graphdata"
+    user_agent: "Mozilla/5.0 (compatible; investment-decision-system/0.1)"
+    referer: "https://www.cnn.com/markets/fear-and-greed"
+    timeout_seconds: 10
+    max_age_seconds: 345600

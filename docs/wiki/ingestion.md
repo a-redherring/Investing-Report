@@ -1,13 +1,15 @@
 # Ingestion
 
 `src/investment_system/ingestion/` holds live market-data adapters. There are
-currently **two**: Finnhub quotes, and Yahoo Finance weekly candles. These are
-the only pieces of code in the repository that make real network calls —
-everything else (indicators, costs, engine, validation, schema, reports,
-snapshots) stays offline and deterministic. Nothing here produces a ranking, a
-score, or a buy/sell recommendation, and nothing here changes any asset's
-hard-gate/risk status (BTCB2's `blake2b_gate` included) — it only produces a
-validated, provenance-tagged data point for something else to use later.
+currently **four**: Finnhub quotes, Yahoo Finance weekly candles, and two
+Fear & Greed sentiment feeds (Alternative.me for crypto, CNN for equities).
+These are the only pieces of code in the repository that make real network
+calls — everything else (indicators, costs, engine, validation, schema,
+reports, snapshots) stays offline and deterministic. Nothing here produces a
+ranking, a score, or a buy/sell recommendation, and nothing here changes any
+asset's hard-gate/risk status (BTCB2's `blake2b_gate` included) — it only
+produces a validated, provenance-tagged data point for something else to use
+later.
 
 ## Design contract (every adapter should follow this)
 
@@ -117,6 +119,48 @@ this shipped** — see [Changelog](changelog.md#2026-09-07) for the full story:
    safeguard against this class of corrupted data recurring for any ticker,
    not just a one-time workaround for IVV specifically.
 
+## Sentiment (`ingestion.alternative_me`, `ingestion.cnn_fear_greed`)
+
+The report schema's `sentiment.equity_fear_greed` and `sentiment.crypto_fear_greed`
+fields need two source-agnostic Fear & Greed observations. Both adapters
+return the same shared `ingestion.sentiment.SentimentObservation` (`value`,
+`category`, `provider`, `effective_at`, `retrieved_at`, `snapshot_id`) —
+mirrors the schema's `sentimentObservation` shape closely enough to embed
+directly with `status: "observed"` added at the point of use.
+
+```python
+from investment_system.ingestion.alternative_me import fetch_crypto_fear_greed
+from investment_system.ingestion.cnn_fear_greed import fetch_equity_fear_greed
+from investment_system.snapshots import SnapshotStore
+
+with SnapshotStore("data/snapshots.sqlite3") as store:
+    crypto = fetch_crypto_fear_greed(snapshot_store=store)   # no key needed
+    equity = fetch_equity_fear_greed(snapshot_store=store)   # no key needed
+```
+
+**Crypto: Alternative.me's `/fng/` endpoint** — an official, documented, free
+API, no key required. Category strings are Title Case as the provider sends
+them ("Greed", "Extreme Fear", etc.), passed through unchanged rather than
+normalized.
+
+**Equity: CNN's unofficial chart-data endpoint** — the same provenance and
+risk profile as `ingestion.yahoo`: no ToS support, no SLA, and it actively
+blocks plain requests. Confirmed 2026-09-07: a request with no `Referer`
+header returns the literal plain-text body `"I'm a teapot. You're a bot."`
+(not JSON, not an HTTP error status — `_parse()` must and does treat this as
+a malformed-response case, not crash on it); adding a browser-like
+`User-Agent` plus a `Referer` matching the real page (`cnn.com/markets/fear-and-greed`)
+is enough to pass. No official free alternative was found for CNN's Fear &
+Greed Index specifically — the schema's `equity_fear_greed` field name was
+clearly written with this exact index in mind, so it's used with the
+unofficial-source caveat stated plainly rather than substituted with a
+worse, differently-defined index.
+
+Both fail closed on a reading older than a configured `max_age_seconds`
+(`config/data-sources.yaml`): 2 days for crypto (updates daily, every day —
+24/7 markets), 4 days for equities (accounts for a normal Friday-to-Monday
+weekend gap when equity markets are closed).
+
 ## CLI
 
 ```bash
@@ -126,14 +170,18 @@ investment-system fetch-quote AAPL --db /path/to/snapshots.sqlite3   # default: 
 
 investment-system fetch-history IVV                # writes data/history/IVV.csv (asset,date,close)
 investment-system fetch-history BTC --range 15y     # override the per-asset default Yahoo range
+
+investment-system fetch-sentiment crypto            # Alternative.me, no key needed
+investment-system fetch-sentiment equity            # CNN, no key needed
 ```
 
-`fetch-quote` prints the quote (or `{"error": "...", "message": "..."}`) and
-exits `1` on any `IngestionError` — this is the "deterministic callable/CLI
-boundary" a scheduler (e.g. a Fedora systemd timer) can invoke without
-importing `ingestion.finnhub`/`ingestion.yahoo` directly or knowing anything
-about a provider's response shape. **Neither is wired into any systemd unit
-yet** — that's Fedora-deployment scope, not this module's.
+`fetch-quote`/`fetch-sentiment` print the fetched value (or
+`{"error": "...", "message": "..."}`) and exit `1` on any `IngestionError` —
+this is the "deterministic callable/CLI boundary" a scheduler (e.g. a Fedora
+systemd timer) can invoke without importing any adapter module directly or
+knowing anything about a provider's response shape. **None of the four
+adapters are wired into any systemd unit yet** — that's Fedora-deployment
+scope, not this module's.
 
 `fetch-history <ASSET>` only accepts an asset symbol with a configured
 provider mapping — currently IVV, NDQ, VAS, VGS, IZZ, VAE, GOLD (all via
@@ -169,11 +217,13 @@ per-asset provider table, well past that point.
   [`docs/candidates/BTCB2.md`](../candidates/BTCB2.md) for BTCB2's current
   status against the crypto asset inclusion gate.
 - **Not called automatically by anything.** No cron/systemd/CLI-chain invokes
-  `fetch-quote` or `fetch-history` yet; both are manual/scriptable commands
-  today, and neither feeds `reports/`, rankings, or gates.
-- **Yahoo's endpoint is unofficial and undocumented** — no ToS support, no
-  SLA, no guarantee it won't change or start rate-limiting without notice.
-  Used because it's empirically the only source found that returns real
-  multi-year ASX weekly history for free; the fail-closed design here means
-  a future breakage surfaces as a loud `IngestionError`, not silently wrong
-  indicators.
+  `fetch-quote`, `fetch-history`, or `fetch-sentiment` yet; all are
+  manual/scriptable commands today, and none feed `reports/`, rankings, or
+  gates.
+- **Yahoo's and CNN's endpoints are unofficial and undocumented** — no ToS
+  support, no SLA, no guarantee either won't change or start rate-limiting
+  without notice. Used because each is empirically the only free source
+  found for what it provides (real multi-year ASX weekly history; the
+  specific index the schema's `equity_fear_greed` field was named after);
+  the fail-closed design here means a future breakage surfaces as a loud
+  `IngestionError`, not silently wrong indicators or sentiment.
