@@ -21,10 +21,12 @@ python3 -m venv .venv
 ./scripts/fedora-healthcheck.sh
 ```
 
-The healthcheck is offline. The optional `fetch-quote` command is the only
-network-enabled path and requires `FINNHUB_API_KEY`; it fetches one Finnhub
-quote and stores the raw response in the local append-only SQLite snapshot
-store. It does not create a recommendation.
+The healthcheck is offline. Two optional commands make real network calls:
+`fetch-quote` (requires `FINNHUB_API_KEY`; fetches one Finnhub quote) and
+`fetch-history` (no key needed; fetches weekly price history from Yahoo
+Finance for IVV, NDQ, VAS, VGS, IZZ, VAE, and BTC). Both snapshot their raw
+response in the local append-only SQLite store. Neither creates a
+recommendation; `fetch-history`'s output CSV feeds straight into `signals`.
 
 Useful commands:
 
@@ -34,6 +36,7 @@ Useful commands:
 .venv/bin/investment-system validate-report reports/practice/P-001.example.json
 .venv/bin/investment-system snapshot-list
 FINNHUB_API_KEY=... .venv/bin/investment-system fetch-quote AAPL
+.venv/bin/investment-system fetch-history IVV
 ```
 
 ## Current scope
@@ -50,8 +53,9 @@ signal.
 
 Implemented foundations include weekly indicator calculations, ASX brokerage
 costs, strict price/report validation, schema validation, append-only
-snapshots, explicit-confirmation report freezing, and the Finnhub single-quote
-adapter. Historical candles, weekly aggregation from a provider, sentiment,
+snapshots, explicit-confirmation report freezing, the Finnhub single-quote
+adapter, and Yahoo Finance weekly-history ingestion for 7 of 9 universe assets
+(see the [roadmap](docs/wiki/roadmap.md)). Gold's data vehicle, sentiment,
 BTCB2/Neoxa ingestion, scoring, report generation, and scheduling are not yet
 implemented.
 

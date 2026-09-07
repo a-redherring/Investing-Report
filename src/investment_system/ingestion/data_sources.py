@@ -38,3 +38,24 @@ def load_finnhub_config(path: str | Path | None = None) -> FinnhubConfig:
         timeout_seconds=float(data.get("timeout_seconds", 10)),
         max_quote_age_seconds=float(data.get("max_quote_age_seconds", 3600)),
     )
+
+
+@dataclass(frozen=True)
+class YahooConfig:
+    provider: str
+    base_url: str
+    user_agent: str
+    timeout_seconds: float
+
+
+def load_yahoo_config(path: str | Path | None = None) -> YahooConfig:
+    sources = load_data_sources_config(path)
+    data = sources.get("yahoo")
+    if not data:
+        raise IngestionConfigError("config/data-sources.yaml has no 'yahoo' source configured")
+    return YahooConfig(
+        provider=str(data["provider"]),
+        base_url=str(data["base_url"]).rstrip("/"),
+        user_agent=str(data["user_agent"]),
+        timeout_seconds=float(data.get("timeout_seconds", 10)),
+    )

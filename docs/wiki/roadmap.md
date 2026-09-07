@@ -20,12 +20,21 @@ specification alone.
 - Fail-closed Finnhub single-quote adapter with offline tests.
 - Fedora healthcheck and systemd service/timer templates. Templates remain
   disabled until the scheduled report pipeline exists.
+- Historical weekly-candle ingestion for IVV, NDQ, VAS, VGS, IZZ, VAE, and
+  BTC via Yahoo Finance (`ingestion.yahoo`), with the canonical
+  `WeeklyBar`/CSV weekly-price contract `indicators.calculate()` already
+  expects — see [Ingestion](ingestion.md) and the 2026-09-07
+  [changelog](changelog.md) entry for the provider-selection process and two
+  real data-quality bugs found and fixed along the way. GOLD remains
+  unsourced pending the open vehicle-selection question below.
 
 ## Next build sequence
 
-1. Add provider historical-candle ingestion and a canonical weekly-price
-   contract. Verify Finnhub plan/tier behavior before relying on its candle
-   endpoint; never infer a weekly series from a single quote.
+1. ~~Add provider historical-candle ingestion and a canonical weekly-price
+   contract.~~ Done for 7 of 9 universe assets (Yahoo Finance) — see above.
+   Remaining: decide gold's vehicle (spot, an ASX ETF, or something else;
+   see `INVESTMENT_DECISION_SYSTEM.md`'s open questions), then source it the
+   same way; CASH has no price series to fetch, by design.
 2. BTCB2/Neoxa adapter and venue/liquidity/security/custody overlay: **gated,
    not scheduled.** Do not build this until BTCB2 independently clears the
    design doc's establishment gate (operational maturity, multi-venue

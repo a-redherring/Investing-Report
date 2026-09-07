@@ -7,6 +7,7 @@ __pycache__/
 data/*.db
 data/*.sqlite*
 data/raw/
+data/history/
 reports/live/*.json
 reports/live/*.md
 reports/practice/*.json

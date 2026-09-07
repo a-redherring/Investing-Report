@@ -3,6 +3,96 @@
 Dated log of material changes to code behavior (not every commit — just things a
 future reader would otherwise have to discover by diffing). Newest first.
 
+## 2026-09-07 — historical weekly-candle ingestion (Yahoo Finance)
+
+Roadmap item 1 ("Add provider historical-candle ingestion and a canonical
+weekly-price contract") was explicitly gated on "verify the chosen
+provider's actual tier/access before relying on it" — this entry is that
+verification, done empirically before writing any adapter code, plus the
+adapter itself and two real data-quality bugs found and fixed along the way.
+
+**Provider selection (tested against a real key, not just public reports):**
+
+- **Finnhub free tier** (the operator's actual plan): confirmed blocked for
+  historical candles — `/stock/candle` returns `403` for both a US symbol
+  (AAPL) and an ASX symbol (IVV.AX), and `/crypto/candle` is blocked too
+  (BTC). The plain `/quote` endpoint still works.
+- **Alpha Vantage free tier**: `SYMBOL_SEARCH` for IVV/VAS returned zero
+  Australia-region matches (only US/Frankfurt/Brazil/India), and direct
+  `TIME_SERIES_WEEKLY_ADJUSTED` calls with an `ASX:` prefix returned empty
+  objects — no real ASX coverage despite older community reports otherwise.
+- **Twelve Data free tier**: explicitly US-equities-only per their own
+  pricing page.
+- **Stooq**: right shape (free CSV, daily/weekly/monthly, no key) but now
+  gated by a client-side JS proof-of-work bot challenge — confirmed via a
+  direct request returning a `/__verify` SHA-256 puzzle page instead of data.
+  Not automatable headlessly.
+- **CoinGecko**: solid for BTC daily prices with no key, but the public/free
+  tier hard-caps historical range at 365 trailing days (`error_code 10012`,
+  confirmed to apply to both keyless and free-Demo-key tiers) — not enough
+  for a 200-week MA. **Built, then removed** once Yahoo was confirmed to
+  cover BTC-USD with the same long, gap-free weekly history as the ASX
+  ETFs — keeping a second provider with no capability advantage over the
+  first would have been pure redundancy.
+- **Yahoo Finance's chart endpoint** (unofficial/undocumented, no ToS/SLA):
+  the only source that returned real multi-year weekly OHLC for ASX-listed
+  ETFs, free, unauthenticated. Used for both the ASX equities and BTC.
+
+**New `ingestion.yahoo.fetch_weekly_history()`** and
+**`ingestion.candles.WeeklyBar`** (the shared weekly-bar contract). New CLI:
+`investment-system fetch-history <asset> [--range WINDOW] [--output-dir DIR]`
+— writes `data/history/<ASSET>.csv` in the exact `asset,date,close` shape
+`engine.load_prices()` already reads, so it feeds `investment-system signals`
+with no other code change. Covers IVV, NDQ, VAS, VGS, IZZ, VAE (via
+`<SYMBOL>.AX`) and BTC (via `BTC-USD`). **GOLD is deliberately unsupported**
+— its vehicle (spot, an ASX ETF, or something else) is still an open design
+question independent of any provider's API; guessing a ticker would have
+silently pre-empted that decision. CASH has no price series to fetch.
+
+**Two real data-quality bugs found and fixed empirically, not guessed at:**
+
+1. **`range="max"` silently coarsens to monthly bars.** Requesting
+   `interval=1wk&range=max` for a long-lived symbol returns bars with
+   ~28-31 day deltas, not ~7 — with no error, warning, or signal of the
+   downgrade anywhere in the response. Every other explicit range tested, up
+   to `"20y"`, returns genuine gap-free weekly bars. `fetch_weekly_history()`
+   therefore defaults to `"20y"`, never `"max"`.
+2. **Yahoo's `"IVV.AX"` history is corrupted from 2010 to 2017** — real
+   values (~$120+) repeatedly flip-flop against bogus ones (~$8-17) roughly
+   15x, with no stock split recorded to explain it (checked directly against
+   `events=splits`, and against both raw `close` and dividend/split-adjusted
+   `adjclose`, which show the identical bogus values). Scanned all 7 tickers
+   for the same anomaly: VAS, VGS, NDQ, IZZ, VAE are completely clean across
+   their full history; BTC-USD's one large single-week move (~-33.5% around
+   2020-03-02) is the real, well-documented COVID crash, not corrupted data.
+   Added a permanent sanity check to `_parse_weekly_history()`: any
+   single-week close-to-close move beyond a 5x/0.2x bound is rejected
+   outright (comfortably wider than genuine extreme volatility, so it never
+   flags a real crash) — this protects any future ticker against the same
+   class of corruption, not just a one-off workaround for IVV. IVV's default
+   fetch range is pinned to `"10y"` (the shortest range confirmed clean,
+   still ~10x the 200-week MA minimum) in `cli.py`'s per-asset provider
+   table; every other asset defaults to `"20y"`. A `--range` CLI override
+   exists for if a similar issue is ever found elsewhere.
+
+**Verified end-to-end against the real network**, not just fixtures: fetched
+real weekly history for all 7 supported assets, fed the combined CSV straight
+into `investment-system signals`, and confirmed every indicator looks
+sane — in particular IVV's `drawdown_from_ath_pct` went from an implausible
+-78% (before the sanity check existed, reading straight into 2010-era
+corrupted data) to a plausible -2.9% after the fix.
+
+**8 new tests** (`tests/test_ingestion_yahoo.py` + 4 fixtures under
+`tests/fixtures/yahoo/`), including a regression test locking in the
+corrupted-data rejection and a companion test confirming a real extreme
+crash is *not* rejected. Full suite: 74 passed. No new dependency — stdlib
+`urllib`, matching `ingestion.finnhub`.
+
+**What's still not built**: nothing calls `fetch-history` automatically (no
+cron/systemd/CLI-chain); nothing feeds its output into a scoring/ranking
+step (none exists yet — see the rest of this roadmap); gold ingestion,
+pending the vehicle decision above.
+
 ## 2026-09-07 — operator_thesis removed entirely; BTCB2 criteria 4/5/6 pass
 
 Operator judgment, superseding the same-day rename below: the

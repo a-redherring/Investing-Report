@@ -1,16 +1,41 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import os
 import sys
 from dataclasses import asdict
+from pathlib import Path
 
 from .engine import calculate_signals, config_snapshot, cost_table, validate_report
 from .ingestion.errors import IngestionError
 from .ingestion.finnhub import fetch_quote
+from .ingestion.yahoo import fetch_weekly_history as fetch_yahoo_weekly_history
 from .snapshots import DEFAULT_DB_PATH, SnapshotStore
 from .reports import freeze_report
+
+# Only assets with an unambiguous, already-verified provider mapping are
+# listed here. GOLD is deliberately absent: which vehicle to track (spot,
+# an ASX ETF, or something else) is still an open design question (see
+# INVESTMENT_DECISION_SYSTEM.md's open questions) independent of any data
+# provider's API, so guessing a symbol here would silently pre-empt that
+# decision. CASH has no price series to fetch at all.
+#
+# default_range is per-asset because Yahoo's "IVV.AX" history is confirmed
+# (2026-09-07) to contain corrupted data from 2010-2017 that fails the
+# implausible-jump check at longer ranges -- "10y" is the shortest range
+# found clean while still comfortably covering the 200-week MA requirement.
+# Every other ticker here is clean at the full "20y".
+_HISTORY_PROVIDERS: dict[str, tuple[str, str]] = {
+    "IVV": ("IVV.AX", "10y"),
+    "NDQ": ("NDQ.AX", "20y"),
+    "VAS": ("VAS.AX", "20y"),
+    "VGS": ("VGS.AX", "20y"),
+    "IZZ": ("IZZ.AX", "20y"),
+    "VAE": ("VAE.AX", "20y"),
+    "BTC": ("BTC-USD", "20y"),
+}
 
 
 def main() -> None:
@@ -52,6 +77,12 @@ def main() -> None:
     fetch = sub.add_parser("fetch-quote", help="fetch, validate, and snapshot a Finnhub quote")
     fetch.add_argument("symbol")
     fetch.add_argument("--db", default=None, help=f"snapshot database path (default: {DEFAULT_DB_PATH}, or $INVESTMENT_SYSTEM_SNAPSHOT_DB if set)")
+
+    fetch_history = sub.add_parser("fetch-history", help="fetch, validate, snapshot, and write weekly price history for a universe asset")
+    fetch_history.add_argument("asset", help=f"universe asset symbol with a configured provider: {', '.join(sorted(_HISTORY_PROVIDERS))}")
+    fetch_history.add_argument("--range", dest="range_", default=None, help="Yahoo history window, e.g. 20y/10y/5y (default: per-asset, 20y for most, 10y for IVV); override to shorten further if a ticker's older history fails the implausible-jump check")
+    fetch_history.add_argument("--output-dir", default="data/history", help="directory to write <ASSET>.csv into (default: data/history)")
+    fetch_history.add_argument("--db", default=None, help=f"snapshot database path (default: {DEFAULT_DB_PATH}, or $INVESTMENT_SYSTEM_SNAPSHOT_DB if set)")
 
     args = parser.parse_args()
 
@@ -96,6 +127,30 @@ def main() -> None:
         except IngestionError as exc:
             print(json.dumps({"error": type(exc).__name__, "message": str(exc)}, indent=2, sort_keys=True))
             sys.exit(1)
+    elif args.command == "fetch-history":
+        asset = args.asset.strip().upper()
+        mapping = _HISTORY_PROVIDERS.get(asset)
+        if mapping is None:
+            print(json.dumps({"error": "UnsupportedAsset", "message": f"no historical-ingestion provider configured for {asset!r}; see docs/wiki/ingestion.md"}, indent=2, sort_keys=True))
+            sys.exit(1)
+        provider_symbol, default_range = mapping
+        range_ = args.range_ or default_range
+        db_path = args.db or os.environ.get("INVESTMENT_SYSTEM_SNAPSHOT_DB") or str(DEFAULT_DB_PATH)
+        try:
+            with SnapshotStore(db_path) as store:
+                bars = fetch_yahoo_weekly_history(provider_symbol, snapshot_store=store, range_=range_)
+        except IngestionError as exc:
+            print(json.dumps({"error": type(exc).__name__, "message": str(exc)}, indent=2, sort_keys=True))
+            sys.exit(1)
+        output_dir = Path(args.output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        csv_path = output_dir / f"{asset}.csv"
+        with open(csv_path, "w", newline="", encoding="utf-8") as handle:
+            writer = csv.writer(handle)
+            writer.writerow(["asset", "date", "close"])
+            for bar in bars:
+                writer.writerow([asset, bar.date, bar.close])
+        result = {"asset": asset, "provider": "yahoo", "provider_symbol": provider_symbol, "bars": len(bars), "path": str(csv_path)}
     else:
         with SnapshotStore(args.db) as store:
             result = [snapshot.summary() for snapshot in store.list(source=args.source)]

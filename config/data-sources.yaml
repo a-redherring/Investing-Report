@@ -5,3 +5,8 @@ sources:
     api_key_env_var: "FINNHUB_API_KEY"
     timeout_seconds: 10
     max_quote_age_seconds: 3600
+  yahoo:
+    provider: "Yahoo Finance"
+    base_url: "https://query1.finance.yahoo.com/v8/finance/chart"
+    user_agent: "Mozilla/5.0 (compatible; investment-decision-system/0.1)"
+    timeout_seconds: 10

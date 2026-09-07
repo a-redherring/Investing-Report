@@ -16,18 +16,26 @@ src/investment_system/
   snapshots.py           Append-only SQLite store for raw input snapshots
                          (SnapshotStore) — provenance, not any specific data source
   reports.py             Canonical JSON report validation, hashing, and write-once freeze
-  ingestion/              Live market-data adapters (currently: Finnhub quotes only)
+  ingestion/              Live market-data adapters (Finnhub quotes, Yahoo weekly candles)
     errors.py              Shared IngestionError hierarchy
-    data_sources.py         Loads config/data-sources.yaml (FinnhubConfig, etc.)
+    data_sources.py         Loads config/data-sources.yaml (FinnhubConfig, YahooConfig)
     finnhub.py              fetch_quote(): fetch, snapshot, validate — see ingestion.md
+    candles.py               WeeklyBar: the shared weekly-price-bar contract every
+                             historical adapter produces
+    yahoo.py                fetch_weekly_history(): fetch, snapshot, validate weekly
+                             OHLC history — see ingestion.md for two real data-quality
+                             bugs found and fixed here (range="max" coarsening,
+                             corrupted IVV.AX history)
   engine.py             CSV loading, wires indicators.py + config.py together,
                          exposes calculate_signals() / cost_table() / config_snapshot()
                          / validate_report()
   cli.py                 `investment-system signals|costs|config|validate-report|
-                         snapshot-save|snapshot-get|snapshot-list|fetch-quote` commands
-config/data-sources.yaml  Finnhub base URL, API-key env var name, timeouts
+                         snapshot-save|snapshot-get|snapshot-list|fetch-quote|
+                         fetch-history` commands
+config/data-sources.yaml  Finnhub base URL/API-key env var/timeouts; Yahoo base URL/User-Agent/timeout
 tests/                  Unit tests for every module above, plus tests/fixtures/prices.csv
-                         and tests/fixtures/finnhub/ (offline Finnhub response fixtures)
+                         and tests/fixtures/finnhub/, tests/fixtures/yahoo/ (offline
+                         response fixtures for each ingestion adapter)
 schemas/                First structural contract for frozen practice/live reports
 reports/practice/       Illustrative schema-shaped practice artifact only
 data/                   snapshots.sqlite3 lives here by default (gitignored)
@@ -41,11 +49,14 @@ docs/candidates/        Crypto-asset-inclusion-gate tracking per candidate
 The deterministic core (`indicators.py`, `costs.py`, `engine.py`'s CSV path,
 `validation.py`, `schema.py`, `reports.py`) makes no network calls and never
 will on its own — feed it a CSV/JSON, get the same output every time. As of
-`ingestion/`, the repository *also* has one opt-in adapter that does make a
-real network call: `investment-system fetch-quote <symbol>`, only when
-explicitly invoked and only with `FINNHUB_API_KEY` set. Nothing calls it
-automatically; nothing in the deterministic core depends on it existing. See
-[Ingestion](ingestion.md).
+`ingestion/`, the repository *also* has two opt-in adapters that make a real
+network call: `investment-system fetch-quote <symbol>` (requires
+`FINNHUB_API_KEY`) and `investment-system fetch-history <asset>` (Yahoo
+Finance, no key needed) — both only run when explicitly invoked. Nothing
+calls either automatically; nothing in the deterministic core depends on
+them existing. `fetch-history`'s output CSV, though, plugs directly into the
+existing CSV pipeline below with no code change — see
+[Data flow](#data-flow) and [Ingestion](ingestion.md).
 
 ## Data flow
 
@@ -95,6 +106,23 @@ config/data-sources.yaml
   -> investment-system fetch-quote <symbol>  (exits 1 with a structured error on
                                                any IngestionError; never touches
                                                rankings, gates, or recommendations)
+
+config/data-sources.yaml
+  -> ingestion.data_sources.load_yahoo_config()  YahooConfig (base URL, User-Agent, timeout)
+  -> ingestion.yahoo.fetch_weekly_history(symbol, snapshot_store=..., range_=...)
+       -> HTTP GET to Yahoo's chart endpoint, no key needed
+       -> snapshots the raw response FIRST (evidence preserved even on failure)
+       -> then validates: parses JSON, drops in-progress/null bars, rejects any
+          single-week move beyond a 5x/0.2x sanity bound (see ingestion.md)
+       -> returns list[WeeklyBar] (date, close), the shared contract every
+          historical adapter produces (ingestion.candles.WeeklyBar)
+  -> investment-system fetch-history <asset>  writes data/history/<ASSET>.csv in the
+                                               same asset,date,close shape load_prices()
+                                               already reads -> feeds straight into
+                                               investment-system signals with no other
+                                               change; exits 1 with a structured error
+                                               on any IngestionError; GOLD/CASH rejected
+                                               outright (no configured provider mapping)
 ```
 
 See [Reports and validation](reports.md) for the report contract,
@@ -117,13 +145,14 @@ larger system: fundamental/regime scoring, sentiment ingestion, BTC BUY/SELL
 assessments, the MCP server, frozen JSON/Markdown reports, SQLite audit storage,
 benchmark simulation, and postmortems. Almost none of that exists in `src/` yet
 (the exceptions are the frozen-report write-once mechanism in `reports.py` and
-the one Finnhub quote adapter in `ingestion/`) — this repository is still
+the Finnhub/Yahoo adapters in `ingestion/`) — this repository is still
 overwhelmingly the "Phase 1: deterministic data foundation" slice. Don't assume
 any scoring/ranking/BTC-or-sentiment-provider behavior is implemented; check
-`src/investment_system/` directly. In particular, `ingestion.finnhub.fetch_quote()`
-produces one validated quote — it does not feed `indicators.calculate()` (that
-needs weekly historical closes, which Finnhub ingestion doesn't fetch yet), and
-nothing calls it automatically.
+`src/investment_system/` directly. `ingestion.finnhub.fetch_quote()` produces
+one validated quote — it does not feed `indicators.calculate()`.
+`ingestion.yahoo.fetch_weekly_history()` does feed it (via `fetch-history`'s
+CSV output), but nothing calls either adapter automatically, and neither
+touches rankings, gates, or recommendations.
 
 ## CLI
 
@@ -140,4 +169,8 @@ investment-system snapshot-list [--source NAME] [--db PATH]
 investment-system fetch-quote <symbol>                 # requires FINNHUB_API_KEY; makes a
                                                         # real network call; exits 1 with a
                                                         # structured error on any failure
+investment-system fetch-history <asset> [--range WINDOW] [--output-dir DIR]
+                                                        # Yahoo Finance weekly history for
+                                                        # IVV/NDQ/VAS/VGS/IZZ/VAE/BTC only;
+                                                        # writes data/history/<ASSET>.csv
 ```

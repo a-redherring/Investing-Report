@@ -1,13 +1,13 @@
 # Ingestion
 
-`src/investment_system/ingestion/` holds live market-data adapters. There is
-currently **one**: Finnhub quotes. This is the first piece of code in the
-repository that makes a real network call — everything else (indicators,
-costs, engine, validation, schema, reports, snapshots) stays offline and
-deterministic. Nothing here produces a ranking, a score, or a buy/sell
-recommendation, and nothing here changes any asset's hard-gate/risk status
-(BTCB2's `blake2b_gate` included) — it only produces a validated,
-provenance-tagged data point for something else to use later.
+`src/investment_system/ingestion/` holds live market-data adapters. There are
+currently **two**: Finnhub quotes, and Yahoo Finance weekly candles. These are
+the only pieces of code in the repository that make real network calls —
+everything else (indicators, costs, engine, validation, schema, reports,
+snapshots) stays offline and deterministic. Nothing here produces a ranking, a
+score, or a buy/sell recommendation, and nothing here changes any asset's
+hard-gate/risk status (BTCB2's `blake2b_gate` included) — it only produces a
+validated, provenance-tagged data point for something else to use later.
 
 ## Design contract (every adapter should follow this)
 
@@ -70,36 +70,95 @@ caller can catch `IngestionError` generically:
 | `IngestionResponseError` | Malformed JSON, missing fields, or Finnhub's all-zero "unrecognized symbol" response |
 | `IngestionStaleDataError` | The quote's own timestamp is older than `max_quote_age_seconds` |
 
+## Historical weekly candles (`ingestion.yahoo`)
+
+Feeding `indicators.calculate()` needs a real time series of weekly closes,
+which a single quote can't provide. Provider research (2026-09-07, before
+building anything) ruled out every free candidate but one:
+
+| Provider | Verdict |
+|---|---|
+| Finnhub free tier | Empirically confirmed blocked — `403` on every candle call (stock and crypto), tested against a real key |
+| Alpha Vantage free tier | No ASX coverage at all — empirically confirmed, zero Australia-region matches in `SYMBOL_SEARCH` |
+| Twelve Data free tier | Explicitly US-equities-only by their own pricing page |
+| Stooq | Free CSV in the right shape, but now gated by a client-side JS proof-of-work challenge — not automatable headlessly |
+| CoinGecko | Solid for BTC daily prices, but the public/free-Demo tier hard-caps historical range at 365 trailing days (`error_code 10012`) — not enough for a 200-week MA. Considered and **removed**; see [Changelog](changelog.md) |
+| **Yahoo Finance's chart endpoint** | **Used.** Free, unauthenticated, real multi-year weekly OHLC for every asset tested, ASX-listed ETFs and BTC-USD alike |
+
+```python
+from investment_system.ingestion.yahoo import fetch_weekly_history
+from investment_system.snapshots import SnapshotStore
+
+with SnapshotStore("data/snapshots.sqlite3") as store:
+    bars = fetch_weekly_history("IVV.AX", snapshot_store=store, range_="10y")
+    # bars: list[WeeklyBar(date="YYYY-MM-DD", close=...)], oldest first
+```
+
+Config lives in `config/data-sources.yaml` (`ingestion.data_sources.YahooConfig`):
+provider name, base URL, the User-Agent header (Yahoo's endpoint requires
+one), and a request timeout. No API key exists or is needed.
+
+**Two real problems were found and fixed empirically, not guessed at, before
+this shipped** — see [Changelog](changelog.md#2026-09-07) for the full story:
+
+1. **`range="max"` silently coarsens to monthly bars**, despite
+   `interval=1wk` being requested, with no error or signal in the response.
+   `fetch_weekly_history()` therefore never uses Yahoo's own `"max"` — it
+   defaults to an explicit `"20y"`, confirmed to return genuine, gap-free
+   7-day-delta weekly bars for every ticker tested.
+2. **Yahoo's `"IVV.AX"` history is corrupted from 2010 to 2017** — real
+   values repeatedly flip-flop ~15x against bogus ones, with no stock split
+   recorded to explain it (confirmed against `events=splits` and by checking
+   both raw `close` and `adjclose`). Every other tested ticker (VAS, VGS,
+   NDQ, IZZ, VAE, BTC-USD) has no such anomaly. `_parse_weekly_history()`
+   therefore rejects **any** single-week close-to-close move beyond a 5x/0.2x
+   sanity bound (comfortably wider than real extreme volatility — BTC's
+   genuine ~-33% single-week COVID crash sits well inside it) — a permanent
+   safeguard against this class of corrupted data recurring for any ticker,
+   not just a one-time workaround for IVV specifically.
+
 ## CLI
 
 ```bash
 investment-system fetch-quote AAPL
 investment-system fetch-quote AAPL --db /path/to/snapshots.sqlite3   # default: data/snapshots.sqlite3,
                                                                        # or $INVESTMENT_SYSTEM_SNAPSHOT_DB
+
+investment-system fetch-history IVV                # writes data/history/IVV.csv (asset,date,close)
+investment-system fetch-history BTC --range 15y     # override the per-asset default Yahoo range
 ```
 
-Prints the quote (or `{"error": "...", "message": "..."}`) and exits `1` on
-any `IngestionError` — this is the "deterministic callable/CLI boundary" a
-scheduler (e.g. a Fedora systemd timer) can invoke without importing
-`ingestion.finnhub` directly or knowing anything about Finnhub's response
-shape. **Not wired into any systemd unit yet** — that's Fedora-deployment
-scope, not this module's.
+`fetch-quote` prints the quote (or `{"error": "...", "message": "..."}`) and
+exits `1` on any `IngestionError` — this is the "deterministic callable/CLI
+boundary" a scheduler (e.g. a Fedora systemd timer) can invoke without
+importing `ingestion.finnhub`/`ingestion.yahoo` directly or knowing anything
+about a provider's response shape. **Neither is wired into any systemd unit
+yet** — that's Fedora-deployment scope, not this module's.
+
+`fetch-history <ASSET>` only accepts an asset symbol with a configured
+provider mapping — currently IVV, NDQ, VAS, VGS, IZZ, VAE (all via Yahoo,
+`<SYMBOL>.AX`) and BTC (Yahoo, `BTC-USD`). **GOLD is deliberately
+unsupported**: which vehicle to track is still an open design question (see
+`INVESTMENT_DECISION_SYSTEM.md`'s open questions), independent of any
+provider's API — guessing a ticker here would silently pre-empt that
+decision, so it fails closed with a message pointing back to this page
+instead. CASH has no price series to fetch. The output CSV is written in the
+exact `asset,date,close` shape `engine.load_prices()` already expects, so it
+can be fed straight into `investment-system signals` with no other change.
 
 ## What's NOT here yet
 
-- **No historical/weekly-candle ingestion.** `indicators.calculate()` needs a
-  time series of weekly closes; `fetch_quote()` returns a single point-in-time
-  quote. Feeding the technical-signal pipeline from Finnhub requires a
-  candle/history endpoint, which isn't implemented — partly because Finnhub's
-  historical-candle access varies by pricing tier and hasn't been confirmed
-  for this operator's plan, and building it on a guess would risk silently
-  producing wrong indicator values.
-- **No BTCB2/Neoxa adapter.** Finnhub doesn't cover Neoxa Exchange; nothing in
-  this module fetches or validates BTCB2 prices. See
+- **No BTCB2/Neoxa adapter.** Neither Finnhub nor Yahoo covers Neoxa
+  Exchange; nothing in this module fetches or validates BTCB2 prices. See
   [`docs/candidates/BTCB2.md`](../candidates/BTCB2.md) for BTCB2's current
   status against the crypto asset inclusion gate.
+- **No gold ingestion**, pending the open vehicle-selection decision above.
 - **Not called automatically by anything.** No cron/systemd/CLI-chain invokes
-  `fetch-quote` yet; it's a manual/scriptable command today.
-- **Only one endpoint, one provider.** `ingestion.errors` is written to be
-  provider-agnostic for when a second adapter exists, but there's only one
-  today.
+  `fetch-quote` or `fetch-history` yet; both are manual/scriptable commands
+  today, and neither feeds `reports/`, rankings, or gates.
+- **Yahoo's endpoint is unofficial and undocumented** — no ToS support, no
+  SLA, no guarantee it won't change or start rate-limiting without notice.
+  Used because it's empirically the only source found that returns real
+  multi-year ASX weekly history for free; the fail-closed design here means
+  a future breakage surfaces as a loud `IngestionError`, not silently wrong
+  indicators.
