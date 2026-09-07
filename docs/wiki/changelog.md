@@ -3,6 +3,55 @@
 Dated log of material changes to code behavior (not every commit — just things a
 future reader would otherwise have to discover by diffing). Newest first.
 
+## 2026-09-07 — gold vehicle decided (ASX:GOLD); historical ingestion now covers all 8 price-bearing assets
+
+Resolved `INVESTMENT_DECISION_SYSTEM.md`'s open question #5 ("How should
+gold be implemented: spot reference, ASX ETF, or another vehicle, and in
+which currency?") — an explicit operator decision, following the same
+"verify before relying on it" discipline used for the ASX-equity/BTC
+provider selection above, not a silent inference from the placeholder
+`GOLD` symbol already in `config/universe.yaml`.
+
+**Compared four ASX-listed gold ETFs on both data quality and economic
+exposure before deciding:**
+
+- **GOLD.AX** (Global X Physical Gold, unhedged) — one isolated bad tick at
+  the same 2010-2011 boundary IVV's corruption occupies, clean otherwise
+  (819 clean bars, ~15.8 years, after it). **Chosen**: largest/most liquid
+  ASX gold ETF, and the symbol already sitting in `config/universe.yaml`
+  turned out to already name this exact real, currently-traded instrument.
+- **QAU.AX** (BetaShares, currency-hedged into AUD) — completely clean Yahoo
+  data, zero anomalies. Considered and passed over: hedging removes the
+  AUD/USD diversification benefit unhedged gold provides for an
+  AUD-denominated investor, at a higher management fee (0.59% vs 0.40%).
+- **PMGOLD.AX** (Perth Mint Gold, unhedged) — ruled out on data reliability:
+  Yahoo's own metadata shows `fiftyTwoWeekHigh: $78.99` against
+  `regularMarketPrice: $17.94`, a >4x disparity with no stock split
+  recorded anywhere to explain it, plus intermittent monthly-spaced gaps in
+  the weekly series as recently as 2020.
+- **NUGG.AX** (VanEck) — clean data but only 197 weekly bars since its
+  December 2022 listing (~3.8 years) — too little history for a 200-week
+  moving average regardless of data quality.
+
+**`GOLD.AX` added to `cli.py`'s `_HISTORY_PROVIDERS`**, pinned to
+`range="15y"` (784 clean bars, confirmed zero anomalies via the same
+implausible-jump scan used for every other ticker) — the same treatment
+IVV's isolated corrupted window already received. No new adapter code was
+needed: `ingestion.yahoo.fetch_weekly_history()` already handles any Yahoo
+symbol generically. Verified end-to-end: `fetch-history GOLD` followed by
+`investment-system signals` produces a plausible `-17.8%` drawdown from a
+real all-time high, not a corrupted or implausible figure.
+
+Updated `INVESTMENT_DECISION_SYSTEM.md` (tracked-universe table, the Gold
+asset-overlay section, "Decisions already made", and struck through open
+question #5 with its resolution — matching the document's own established
+convention for resolved questions, e.g. the crypto-inclusion-gate item),
+`docs/wiki/ingestion.md` (the comparison table above), and
+`docs/wiki/configuration.md`. Every universe asset except CASH (which has no
+price series to fetch) is now sourced. Full suite: 74 passed, unchanged —
+this needed no new adapter tests since `GOLD.AX` runs through the
+already-tested `fetch_weekly_history()` generically.
+
 ## 2026-09-07 — historical weekly-candle ingestion (Yahoo Finance)
 
 Roadmap item 1 ("Add provider historical-candle ingestion and a canonical

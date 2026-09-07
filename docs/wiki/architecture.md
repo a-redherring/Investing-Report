@@ -171,6 +171,6 @@ investment-system fetch-quote <symbol>                 # requires FINNHUB_API_KE
                                                         # structured error on any failure
 investment-system fetch-history <asset> [--range WINDOW] [--output-dir DIR]
                                                         # Yahoo Finance weekly history for
-                                                        # IVV/NDQ/VAS/VGS/IZZ/VAE/BTC only;
+                                                        # IVV/NDQ/VAS/VGS/IZZ/VAE/GOLD/BTC only;
                                                         # writes data/history/<ASSET>.csv
 ```

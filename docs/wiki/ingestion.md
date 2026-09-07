@@ -136,15 +136,31 @@ about a provider's response shape. **Neither is wired into any systemd unit
 yet** — that's Fedora-deployment scope, not this module's.
 
 `fetch-history <ASSET>` only accepts an asset symbol with a configured
-provider mapping — currently IVV, NDQ, VAS, VGS, IZZ, VAE (all via Yahoo,
-`<SYMBOL>.AX`) and BTC (Yahoo, `BTC-USD`). **GOLD is deliberately
-unsupported**: which vehicle to track is still an open design question (see
-`INVESTMENT_DECISION_SYSTEM.md`'s open questions), independent of any
-provider's API — guessing a ticker here would silently pre-empt that
-decision, so it fails closed with a message pointing back to this page
-instead. CASH has no price series to fetch. The output CSV is written in the
-exact `asset,date,close` shape `engine.load_prices()` already expects, so it
-can be fed straight into `investment-system signals` with no other change.
+provider mapping — currently IVV, NDQ, VAS, VGS, IZZ, VAE, GOLD (all via
+Yahoo, `<SYMBOL>.AX`) and BTC (Yahoo, `BTC-USD`). CASH has no price series
+to fetch. The output CSV is written in the exact `asset,date,close` shape
+`engine.load_prices()` already expects, so it can be fed straight into
+`investment-system signals` with no other change.
+
+### Gold vehicle selection (`GOLD.AX`)
+
+Gold's vehicle was an explicit open design question (which instrument,
+hedged or unhedged, in which currency) independent of any data provider's
+API — resolved 2026-09-07 to **ASX:GOLD** (Global X Physical Gold,
+unhedged, AUD), after comparing it against the other ASX-listed gold ETFs
+on both data quality and economic exposure:
+
+| Candidate | Yahoo data quality | History | Decision |
+|---|---|---|---|
+| **GOLD.AX** (unhedged) | One isolated bad tick (2010-12-26→2011-01-02); clean otherwise | 976 bars since 2007 | **Chosen** — largest/most liquid ASX gold ETF, matches the symbol already in `config/universe.yaml` |
+| QAU.AX (hedged into AUD) | Completely clean | 802 bars since 2011 | Considered — pure gold-price exposure, no AUD-weakness diversification benefit, higher fee (0.59% vs 0.40%) |
+| PMGOLD.AX (unhedged) | **Unreliable** — `fiftyTwoWeekHigh` ($78.99) vs `regularMarketPrice` ($17.94) is a >4x disparity with no split recorded, plus intermittent monthly-spaced gaps as recently as 2020 | — | Ruled out on data reliability |
+| NUGG.AX (unhedged) | Clean | Only 197 bars since Dec 2022 (~3.8 years) | Ruled out — too little history for a 200-week MA |
+
+Like `IVV.AX`, `GOLD.AX`'s isolated bad tick sits right at the same
+2010-2011 boundary IVV's sustained corruption occupies — pinned to
+`range="15y"` (784 clean bars, confirmed zero anomalies) in `cli.py`'s
+per-asset provider table, well past that point.
 
 ## What's NOT here yet
 
@@ -152,7 +168,6 @@ can be fed straight into `investment-system signals` with no other change.
   Exchange; nothing in this module fetches or validates BTCB2 prices. See
   [`docs/candidates/BTCB2.md`](../candidates/BTCB2.md) for BTCB2's current
   status against the crypto asset inclusion gate.
-- **No gold ingestion**, pending the open vehicle-selection decision above.
 - **Not called automatically by anything.** No cron/systemd/CLI-chain invokes
   `fetch-quote` or `fetch-history` yet; both are manual/scriptable commands
   today, and neither feeds `reports/`, rankings, or gates.

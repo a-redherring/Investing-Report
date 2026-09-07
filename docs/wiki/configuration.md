@@ -46,7 +46,9 @@ Each entry: `symbol` (matched against the `asset` column in the weekly price CSV
 case-insensitive — `engine.load_prices()` upper-cases it), `currency` (informational;
 nothing currently converts between currencies), `core` (whether the asset gets the
 core/Waiting-Risk treatment described in the design doc — not yet used by any
-calculation).
+calculation). `GOLD`'s underlying vehicle is ASX:GOLD (Global X Physical Gold,
+unhedged) — see [Ingestion](ingestion.md#gold-vehicle-selection-goldax) for the
+decision and the data-quality comparison against the other ASX gold ETFs.
 
 Per the design doc, this universe is closed by default: adding an asset here should
 come with a `model_version` bump and the accompanying documentation described in

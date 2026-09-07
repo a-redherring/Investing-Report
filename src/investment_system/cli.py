@@ -16,23 +16,23 @@ from .snapshots import DEFAULT_DB_PATH, SnapshotStore
 from .reports import freeze_report
 
 # Only assets with an unambiguous, already-verified provider mapping are
-# listed here. GOLD is deliberately absent: which vehicle to track (spot,
-# an ASX ETF, or something else) is still an open design question (see
-# INVESTMENT_DECISION_SYSTEM.md's open questions) independent of any data
-# provider's API, so guessing a symbol here would silently pre-empt that
-# decision. CASH has no price series to fetch at all.
+# listed here. GOLD tracks ASX:GOLD (Global X Physical Gold, unhedged) --
+# an explicit operator decision (2026-09-07, see INVESTMENT_DECISION_SYSTEM.md's
+# "Decisions already made"), not a silent inference from the placeholder
+# symbol already in config/universe.yaml. CASH has no price series to fetch.
 #
-# default_range is per-asset because Yahoo's "IVV.AX" history is confirmed
-# (2026-09-07) to contain corrupted data from 2010-2017 that fails the
-# implausible-jump check at longer ranges -- "10y" is the shortest range
-# found clean while still comfortably covering the 200-week MA requirement.
-# Every other ticker here is clean at the full "20y".
+# default_range is per-asset because Yahoo's "IVV.AX" and "GOLD.AX" history
+# is confirmed (2026-09-07) to contain corrupted/anomalous data at longer
+# ranges that fails the implausible-jump check -- each is pinned to the
+# shortest range found clean while still comfortably covering the 200-week
+# MA requirement. Every other ticker here is clean at the full "20y".
 _HISTORY_PROVIDERS: dict[str, tuple[str, str]] = {
     "IVV": ("IVV.AX", "10y"),
     "NDQ": ("NDQ.AX", "20y"),
     "VAS": ("VAS.AX", "20y"),
     "VGS": ("VGS.AX", "20y"),
     "IZZ": ("IZZ.AX", "20y"),
+    "GOLD": ("GOLD.AX", "15y"),
     "VAE": ("VAE.AX", "20y"),
     "BTC": ("BTC-USD", "20y"),
 }

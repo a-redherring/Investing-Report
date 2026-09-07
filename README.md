@@ -24,7 +24,7 @@ python3 -m venv .venv
 The healthcheck is offline. Two optional commands make real network calls:
 `fetch-quote` (requires `FINNHUB_API_KEY`; fetches one Finnhub quote) and
 `fetch-history` (no key needed; fetches weekly price history from Yahoo
-Finance for IVV, NDQ, VAS, VGS, IZZ, VAE, and BTC). Both snapshot their raw
+Finance for IVV, NDQ, VAS, VGS, IZZ, VAE, GOLD, and BTC). Both snapshot their raw
 response in the local append-only SQLite store. Neither creates a
 recommendation; `fetch-history`'s output CSV feeds straight into `signals`.
 
@@ -54,8 +54,8 @@ signal.
 Implemented foundations include weekly indicator calculations, ASX brokerage
 costs, strict price/report validation, schema validation, append-only
 snapshots, explicit-confirmation report freezing, the Finnhub single-quote
-adapter, and Yahoo Finance weekly-history ingestion for 7 of 9 universe assets
-(see the [roadmap](docs/wiki/roadmap.md)). Gold's data vehicle, sentiment,
+adapter, and Yahoo Finance weekly-history ingestion for all 8 price-bearing
+universe assets (see the [roadmap](docs/wiki/roadmap.md)). Sentiment,
 BTCB2/Neoxa ingestion, scoring, report generation, and scheduling are not yet
 implemented.
 

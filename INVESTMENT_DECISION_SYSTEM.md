@@ -67,7 +67,7 @@ Key principles:
 | VGS | ASX-listed VGS | Developed global equities | Yes | Does broad developed-market diversification merit accumulation? |
 | IZZ | ASX-listed IZZ | China large-cap exposure | No | Does low valuation outweigh structural, policy, and trend risks? |
 | VAE | ASX-listed VAE | Asian equities excluding Japan | Yes | Does diversified Asian growth offer better risk-adjusted value than concentrated China exposure? |
-| Gold | Spot or nominated investable vehicle | Diversifier / real asset | No | Is the macro regime supportive enough to justify the opportunity cost of a non-yielding asset? |
+| Gold | ASX:GOLD (Global X Physical Gold, unhedged) | Diversifier / real asset | No | Is the macro regime supportive enough to justify the opportunity cost of a non-yielding asset? |
 | BTC | Bitcoin | High-volatility cyclical asset | No | Do cycle, sentiment, valuation proxies, and trend justify buying or selling? |
 | Cash | AUD cash at an assumed 5% p.a. | Reserve and benchmark | N/A | Is waiting the highest-quality use of capital? |
 
@@ -245,6 +245,14 @@ Each observation records provider, value, category, retrieval time, and effectiv
 
 ### Gold
 
+- Vehicle: **ASX:GOLD** (Global X Physical Gold, unhedged, AUD) — the largest
+  and most liquid ASX-listed gold ETF, chosen over QAU (currency-hedged, no
+  AUD-weakness diversification benefit, higher fee) and PMGOLD/NUGG (ruled
+  out on data reliability/history depth — see
+  [`docs/wiki/ingestion.md`](docs/wiki/ingestion.md)).
+- Being unhedged, AUD-denominated returns reflect both the USD gold price
+  *and* AUD/USD movements — this is the diversification property against AUD
+  weakness the unhedged choice is for, not a defect to correct for.
 - Real yields, nominal yields, USD, inflation expectations, fiscal credibility, central-bank demand, geopolitics, and investor flows.
 - Distance above the 200W MA is technical stretch, not proof of fundamental overvaluation.
 - In a structural bull regime, extension may justify “hold/don't chase” rather than “sell.”
@@ -975,14 +983,26 @@ Data sources/times, completed checks, warnings, commit, snapshot, and report has
   earlier two-agent (Claude Code + Codex) build split has ended. See
   `docs/archive/` for that phase's coordination log and design reviews,
   retained as historical record.
+- **Gold's vehicle is ASX:GOLD (Global X Physical Gold, unhedged)** in AUD —
+  operator decision, 2026-09-07, after comparing it against QAU (BetaShares,
+  currency-hedged, higher fee, no diversification benefit against AUD
+  weakness) and ruling out PMGOLD (unreliable market-data feed) and NUGG
+  (too little trading history for a 200-week moving average). See
+  [Ingestion](docs/wiki/ingestion.md) for the data-quality comparison and
+  [Changelog](docs/wiki/changelog.md) for the full reasoning.
+- Market-data provider for ASX equities and gold: **Yahoo Finance's
+  unofficial chart endpoint**, after Finnhub (blocked on the operator's
+  plan), Alpha Vantage (no real ASX coverage), Twelve Data (US-only free
+  tier), and Stooq (bot-walled) were all empirically ruled out. See
+  [Ingestion](docs/wiki/ingestion.md).
 
 ### Remaining questions
 
 1. What exact cash product and after-tax/after-fee yield should replace the flat 5% assumption?
 2. What is the weekly bar cutoff for ASX assets versus globally traded BTC and gold?
-3. Which market-data providers are authoritative for adjusted ASX history, fundamentals, macro, ATH, and sentiment?
+3. ~~Which market-data providers are authoritative for adjusted ASX history, fundamentals, macro, ATH, and sentiment?~~ Resolved for ASX/gold price history: Yahoo Finance (see "Decisions already made"). Fundamentals, macro, and sentiment providers remain open.
 4. What exact MACD parameters will Model v1.0 freeze beyond the currently implemented indicator contract?
-5. How should gold be implemented: spot reference, ASX ETF, or another vehicle, and in which currency?
+5. ~~How should gold be implemented: spot reference, ASX ETF, or another vehicle, and in which currency?~~ Resolved: ASX:GOLD (Global X Physical Gold, unhedged), AUD — see "Decisions already made".
 6. What are the portfolio's existing weights, contribution schedule, concentration limits, liquidity needs, and maximum acceptable drawdown?
 7. Does “one asset per Monday” remain optimal when diversification or brokerage rules favour multiple orders?
 8. What hard gates and score thresholds map to each sizing tier?
