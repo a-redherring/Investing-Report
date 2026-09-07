@@ -1,0 +1,43 @@
+{
+  "schema_version": "1.0",
+  "report_id": "P-001",
+  "report_kind": "practice",
+  "model_version": "1.0",
+  "decision_date": "2026-09-04",
+  "timezone": "Australia/Sydney",
+  "data_cutoff": "2026-09-04T00:00:00+00:00",
+  "generated_at": "2026-09-04T00:00:00+00:00",
+  "code_commit": "example",
+  "input_snapshot_id": "fixture-prices",
+  "assumptions": {
+    "cash_yield_pct": 5.0,
+    "price_adjustment_method": "fixture weekly closes; illustrative only",
+    "broker_terms_verified_at": null
+  },
+  "rankings": [
+    {
+      "rank": 1,
+      "asset": "TEST",
+      "new_money_action": "A$0",
+      "existing_position_action": "HOLD",
+      "confidence": "insufficient",
+      "hard_gates_passed": false,
+      "rationale": "Illustrative fixture has insufficient long-history data; no investment decision is made."
+    }
+  ],
+  "bitcoin": {
+    "status": "unavailable",
+    "reference_basis": null,
+    "buy_assessment": {"decision": "INSUFFICIENT_DATA", "confidence": "insufficient", "rationale": "BTC data source and assessment rules are not configured."},
+    "sell_assessment": {"decision": "INSUFFICIENT_DATA", "confidence": "insufficient", "rationale": "BTC data source and assessment rules are not configured."},
+    "blake2b_gate": {"status": "unavailable", "checked_at": null, "reason": "No approved BLAKE2b monitoring source is configured."}
+  },
+  "sentiment": {
+    "equity_fear_greed": {"status": "unavailable", "value": null, "category": null, "provider": null, "effective_at": null, "retrieved_at": null, "reason": "No approved equity sentiment source is configured."},
+    "crypto_fear_greed": {"status": "unavailable", "value": null, "category": null, "provider": null, "effective_at": null, "retrieved_at": null, "reason": "No approved crypto sentiment source is configured."}
+  },
+  "quality_control": {
+    "validation_status": "practice_only",
+    "warnings": ["This is a rehearsal artifact, not a live recommendation."]
+  }
+}

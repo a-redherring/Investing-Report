@@ -1,0 +1,14 @@
+.env
+.venv/
+__pycache__/
+.pytest_cache/
+*.egg-info/
+*.py[cod]
+data/*.db
+data/*.sqlite*
+data/raw/
+reports/live/*.json
+reports/live/*.md
+reports/practice/*.json
+reports/practice/*.md
+!reports/practice/*.example.json

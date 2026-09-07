@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Monday Investment Decision System
+
+[Timer]
+OnCalendar=Mon *-*-* 08:00:00 Australia/Sydney
+Persistent=true
+RandomizedDelaySec=15m
+Unit=investment-system.service
+
+[Install]
+WantedBy=timers.target

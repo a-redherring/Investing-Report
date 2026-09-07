@@ -1,0 +1,10 @@
+assets:
+  - {symbol: IVV, currency: AUD, core: true}
+  - {symbol: NDQ, currency: AUD, core: false}
+  - {symbol: VAS, currency: AUD, core: true}
+  - {symbol: VGS, currency: AUD, core: true}
+  - {symbol: IZZ, currency: AUD, core: false}
+  - {symbol: VAE, currency: AUD, core: true}
+  - {symbol: GOLD, currency: AUD, core: false}
+  - {symbol: BTC, currency: USD, core: false}
+  - {symbol: CASH, currency: AUD, core: false}

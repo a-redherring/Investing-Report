@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/investment-decision-system/frozen-report.schema.json",
+  "title": "Frozen Monday Investment Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "report_id", "report_kind", "model_version", "decision_date", "timezone", "data_cutoff", "generated_at", "assumptions", "rankings", "bitcoin", "sentiment", "quality_control"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "report_id": {"type": "string", "pattern": "^(P-[0-9]{3}|[0-9]{3})$"},
+    "report_kind": {"enum": ["practice", "live"]},
+    "model_version": {"type": "string", "minLength": 1},
+    "decision_date": {"type": "string", "format": "date"},
+    "timezone": {"const": "Australia/Sydney"},
+    "data_cutoff": {"type": "string", "format": "date-time"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "code_commit": {"type": "string"},
+    "input_snapshot_id": {"type": "string"},
+    "assumptions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cash_yield_pct", "price_adjustment_method"],
+      "properties": {
+        "cash_yield_pct": {"type": "number", "minimum": 0},
+        "price_adjustment_method": {"type": "string", "minLength": 1},
+        "broker_terms_verified_at": {"type": ["string", "null"]}
+      }
+    },
+    "rankings": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["rank", "asset", "new_money_action", "confidence", "hard_gates_passed", "rationale"],
+        "properties": {
+          "rank": {"type": "integer", "minimum": 1},
+          "asset": {"type": "string", "minLength": 1},
+          "new_money_action": {"enum": ["A$0", "A$999", "A$2000", "A$4000", "BTC_EQUIVALENT"]},
+          "existing_position_action": {"enum": ["HOLD", "CONSIDER_PARTIAL_SELL", "PARTIAL_SELL", "EXIT"]},
+          "confidence": {"enum": ["high", "medium", "low", "insufficient"]},
+          "hard_gates_passed": {"type": "boolean"},
+          "rationale": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "bitcoin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "buy_assessment", "sell_assessment", "blake2b_gate"],
+      "properties": {
+        "status": {"enum": ["available", "unavailable"]},
+        "reference_basis": {"type": ["object", "null"], "additionalProperties": false, "properties": {"currency": {"type": "string"}, "price": {"type": ["number", "null"], "exclusiveMinimum": 0}, "as_of": {"type": ["string", "null"], "format": "date-time"}}},
+        "buy_assessment": {"$ref": "#/$defs/btcBuyAssessment"},
+        "sell_assessment": {"$ref": "#/$defs/btcSellAssessment"},
+        "blake2b_gate": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status"],
+          "properties": {
+            "status": {"enum": ["pass", "fail", "unavailable"]},
+            "checked_at": {"type": ["string", "null"], "format": "date-time"},
+            "reason": {"type": ["string", "null"]}
+          }
+        }
+      }
+    },
+    "sentiment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["equity_fear_greed", "crypto_fear_greed"],
+      "properties": {
+        "equity_fear_greed": {"$ref": "#/$defs/sentimentObservation"},
+        "crypto_fear_greed": {"$ref": "#/$defs/sentimentObservation"}
+      }
+    },
+    "quality_control": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["validation_status", "warnings"],
+      "properties": {
+        "validation_status": {"enum": ["pass", "fail", "practice_only"]},
+        "warnings": {"type": "array", "items": {"type": "string"}}
+      }
+    }
+  },
+  "$defs": {
+    "btcBuyAssessment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision", "confidence", "rationale"],
+      "properties": {"decision": {"enum": ["BUY", "WATCH", "NO_BUY", "INSUFFICIENT_DATA"]}, "confidence": {"enum": ["high", "medium", "low", "insufficient"]}, "rationale": {"type": "string", "minLength": 1}}
+    },
+    "btcSellAssessment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision", "confidence", "rationale"],
+      "properties": {"decision": {"enum": ["HOLD", "CONSIDER_PARTIAL_SELL", "PARTIAL_SELL", "EXIT", "INSUFFICIENT_DATA"]}, "confidence": {"enum": ["high", "medium", "low", "insufficient"]}, "rationale": {"type": "string", "minLength": 1}}
+    },
+    "sentimentObservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "value", "category", "provider", "effective_at", "retrieved_at"],
+      "properties": {"status": {"enum": ["observed", "unavailable"]}, "value": {"type": ["number", "null"], "minimum": 0, "maximum": 100}, "category": {"type": ["string", "null"]}, "provider": {"type": ["string", "null"]}, "effective_at": {"type": ["string", "null"], "format": "date-time"}, "retrieved_at": {"type": ["string", "null"], "format": "date-time"}, "reason": {"type": ["string", "null"]}}
+    }
+  }
+}

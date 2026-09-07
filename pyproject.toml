@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "investment-decision-system"
+version = "0.1.0"
+description = "Deterministic, auditable Monday investment decision engine"
+requires-python = ">=3.10"
+dependencies = ["pyyaml>=6.0", "jsonschema[format]>=4.0"]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[project.scripts]
+investment-system = "investment_system.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

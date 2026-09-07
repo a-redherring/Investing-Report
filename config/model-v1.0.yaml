@@ -1,0 +1,6 @@
+model_version: "1.0"
+cash_yield_pct: 5.0
+brokerage:
+  minimum_aud: 11.0
+  rate_pct: 0.10
+  qualifying_buy_limit_aud: 999.0

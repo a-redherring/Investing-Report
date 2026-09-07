@@ -1,0 +1,7 @@
+sources:
+  finnhub:
+    provider: "Finnhub"
+    base_url: "https://finnhub.io/api/v1"
+    api_key_env_var: "FINNHUB_API_KEY"
+    timeout_seconds: 10
+    max_quote_age_seconds: 3600

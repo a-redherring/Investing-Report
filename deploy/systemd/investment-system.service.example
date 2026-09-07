@@ -1,0 +1,20 @@
+[Unit]
+Description=Monday Investment Decision System
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=investing
+Group=investing
+WorkingDirectory=/opt/investing-advice/repo
+EnvironmentFile=/etc/investing-advice/secrets.env
+ExecStart=/opt/investing-advice/venv/bin/investment-system monday-run
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/investing-advice/repo/data /opt/investing-advice/repo/reports
+
+# Deployment template only. `monday-run` is not enabled until the data and
+# report pipeline is complete.
