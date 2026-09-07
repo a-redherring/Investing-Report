@@ -3,6 +3,89 @@
 Dated log of material changes to code behavior (not every commit — just things a
 future reader would otherwise have to discover by diffing). Newest first.
 
+## 2026-09-07 — FRED macro-indicator fetcher; fundamental valuation confirmed unautomatable for now
+
+Follow-up to the `candidates.py` entry below: with scoring/ranking deferred
+pending operator-decided weights/thresholds, the next honest question was
+whether the two missing three-layer-model inputs (fundamental valuation,
+regime) could be sourced at all. Researched before writing any code, since
+forcing an automated classifier here on invented thresholds would repeat
+the exact mistake scoring/ranking was just deferred to avoid.
+
+**Fundamental valuation: no viable free source found.**
+
+- No free, machine-readable ASX index valuation data exists. The RBA
+  publishes ASX 200 dividend/P/E statistics, but only as PDF — no CSV/API.
+  The real S&P/ASX 200 P/E is Refinitiv-sourced and not freely republished
+  anywhere found.
+- A promising free, keyless GitHub-hosted mirror of the Shiller S&P 500
+  dataset (P/E10, dividend, earnings) was checked directly, not just
+  assumed reliable from its listing page — its valuation columns
+  (`Dividend`, `Earnings`, `PE10`) are zeroed out for every month since
+  **2023-06** per the dataset's own notes (confirmed against real 2026 rows:
+  only the raw index price is populated, valuation fields are all `0.0`).
+  Using it for a "current valuation" reading would have silently violated
+  this project's own fail-closed staleness rule.
+- It would only have covered the US index anyway (IVV, loosely NDQ) — no
+  help for VAS/IZZ/VAE, and gold/BTC have no P/E concept at all.
+- Conclusion: this layer stays qualitative/interactive-AI judgment, per
+  this document's own original architecture — not a gap left to close
+  later, a deliberate fit with what the design already intended.
+
+**Regime: partially automatable, but not as a mechanical formula.** FRED
+(Federal Reserve Bank of St. Louis) is free, official, documented, and
+covers what the regime inputs list needs — VIX, yield curve, credit
+spreads, the fed funds rate — via an instant free-signup API key (same
+tier as Alpha Vantage/CoinGecko's demo keys, confirmed via FRED's own
+docs). But synthesizing those numbers into one of the seven regime labels
+(`Deteriorating`/`Stable`/`Improving`/`Structural Bull`/`Structural
+Breakout`/`Crisis`/`Unclear`) is a multi-factor judgment call, not a
+threshold formula the way the technical layer's "stretch" label is —
+hardcoding that mapping would mean inventing the same kind of thresholds
+already declined for scoring. Confirmed with the operator before building:
+fetch raw numbers only, classify nothing.
+
+**New `ingestion.fred.fetch_series_latest()`** and
+**`ingestion.data_sources.FredConfig`**. New CLI: `investment-system
+fetch-macro <indicator>`, where `<indicator>` is a mnemonic (`vix`,
+`yield_curve_10y2y`, `credit_spread_ig`, `credit_spread_hy`,
+`fed_funds_rate`) mapped in `cli.py`'s `_MACRO_SERIES` to the real FRED
+series ID.
+
+**A real, documented deviation from this project's own design contract**:
+every other adapter sends its API key as a header, "never the URL/query
+string" — FRED's API only accepts the key as a URL parameter; there is no
+header alternative. Handled by having `ingestion.fred`'s transport-error
+paths never include the constructed request URL in any message (unlike
+`ingestion.finnhub`/`yahoo`/`cnn_fear_greed`, where the URL contains no
+secret and is safe to log) — the key is never in a log line, exception, or
+the snapshot's own metadata, only in the one outbound request. Locked in
+with a regression test (`test_api_key_never_appears_in_snapshot_or_error`)
+that positively asserts the key *is* in the constructed URL (so the test
+can't pass trivially) while confirming it never reaches the snapshot
+content, snapshot metadata, or survives into any error path.
+
+Also handles a real FRED-specific parsing quirk found in their own
+documentation: a missing/not-yet-published observation is represented as
+the literal string `"."`, not `null` or an omitted field.
+`fetch_series_latest()` requests the 10 most recent observations and walks
+forward past any `"."` entries to the latest real value, rather than
+crashing on the next holiday/reporting lag or treating `"."` as zero.
+
+Built entirely against FRED's own documented response shape and tested
+offline with fixtures matching it exactly — no FRED API key was available
+in this environment to verify live end-to-end, unlike every other adapter
+this session (Finnhub, Alpha Vantage, Yahoo, CoinGecko were all verified
+against the real network). The operator can optionally get a free key and
+run `fetch-macro vix` for a final live check.
+
+**13 new tests** (`tests/test_ingestion_fred.py` + 5 fixtures under
+`tests/fixtures/fred/`). Full suite: 104 passed. No new dependency.
+
+**What's still not built**: no regime classifier, no valuation source of
+any kind, nothing calls `fetch-macro` automatically or feeds it into
+`candidates.py`.
+
 ## 2026-09-07 — deterministic feature assembly (`candidates.py`); scoring/ranking deliberately deferred
 
 Started roadmap item 4 ("Build deterministic feature assembly, scoring,

@@ -22,14 +22,16 @@ python3 -m venv .venv
 ./scripts/fedora-healthcheck.sh
 ```
 
-The healthcheck is offline. Three optional commands make real network calls,
-none requiring a key except `fetch-quote`: `fetch-quote` (requires
-`FINNHUB_API_KEY`; fetches one Finnhub quote), `fetch-history` (fetches
-weekly price history from Yahoo Finance for IVV, NDQ, VAS, VGS, IZZ, VAE,
-GOLD, and BTC), and `fetch-sentiment` (fetches a Fear & Greed reading from
-Alternative.me or CNN). All three snapshot their raw response in the local
-append-only SQLite store. None creates a recommendation; `fetch-history`'s
-output CSV feeds straight into `signals`.
+The healthcheck is offline. Four optional commands make real network calls,
+two requiring a key: `fetch-quote` (requires `FINNHUB_API_KEY`; fetches one
+Finnhub quote), `fetch-history` (no key; fetches weekly price history from
+Yahoo Finance for IVV, NDQ, VAS, VGS, IZZ, VAE, GOLD, and BTC),
+`fetch-sentiment` (no key; fetches a Fear & Greed reading from Alternative.me
+or CNN), and `fetch-macro` (requires `FRED_API_KEY`, free instant signup;
+fetches a raw macro number — VIX, yield spread, credit spreads, fed funds
+rate — never a regime label). All four snapshot their raw response in the
+local append-only SQLite store. None creates a recommendation;
+`fetch-history`'s output CSV feeds straight into `signals`.
 
 Useful commands:
 
@@ -41,6 +43,7 @@ Useful commands:
 FINNHUB_API_KEY=... .venv/bin/investment-system fetch-quote AAPL
 .venv/bin/investment-system fetch-history IVV
 .venv/bin/investment-system fetch-sentiment crypto
+FRED_API_KEY=... .venv/bin/investment-system fetch-macro vix
 ```
 
 ## Current scope
@@ -60,10 +63,14 @@ costs, strict price/report validation, schema validation, append-only
 snapshots, explicit-confirmation report freezing, the Finnhub single-quote
 adapter, Yahoo Finance weekly-history ingestion for all 8 price-bearing
 universe assets, both required sentiment feeds (Alternative.me for crypto,
-CNN for equities), and deterministic feature assembly (`candidates`, one
+CNN for equities), a FRED macro-indicator fetcher (raw numbers only, not a
+regime classifier), and deterministic feature assembly (`candidates`, one
 technical-plus-placeholder record per asset — not a ranking) (see the
-[roadmap](docs/wiki/roadmap.md)). Scoring, ranking, BTCB2 ingestion, report
-generation, and scheduling are not yet implemented.
+[roadmap](docs/wiki/roadmap.md)). Fundamental valuation has no data source
+(none free and current was found); regime classification and scoring/ranking
+stay deliberately unautomated — see [Ingestion](docs/wiki/ingestion.md).
+BTCB2 ingestion, report generation, and scheduling are also not yet
+implemented.
 
 Secrets belong in the process environment or an external server-side secrets
 file. Do not commit `.env` files or API keys; `.env.example` documents names

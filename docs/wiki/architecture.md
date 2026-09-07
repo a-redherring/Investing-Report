@@ -20,10 +20,10 @@ src/investment_system/
                          (SnapshotStore) — provenance, not any specific data source
   reports.py             Canonical JSON report validation, hashing, and write-once freeze
   ingestion/              Live market-data adapters (Finnhub quotes, Yahoo weekly
-                         candles, Alternative.me/CNN sentiment)
+                         candles, Alternative.me/CNN sentiment, FRED macro)
     errors.py              Shared IngestionError hierarchy
     data_sources.py         Loads config/data-sources.yaml (FinnhubConfig, YahooConfig,
-                             AlternativeMeConfig, CnnFearGreedConfig)
+                             AlternativeMeConfig, CnnFearGreedConfig, FredConfig)
     finnhub.py              fetch_quote(): fetch, snapshot, validate — see ingestion.md
     candles.py               WeeklyBar: the shared weekly-price-bar contract every
                              historical adapter produces
@@ -37,18 +37,21 @@ src/investment_system/
     cnn_fear_greed.py        fetch_equity_fear_greed(): unofficial endpoint, no key
                              but needs a Referer header to avoid a bot block —
                              see ingestion.md
+    fred.py                  fetch_series_latest(): raw macro numbers only, no
+                             regime label invented — key only works as a URL
+                             param (no header alternative) — see ingestion.md
   engine.py             CSV loading, wires indicators.py + config.py together,
                          exposes calculate_signals() / cost_table() / config_snapshot()
                          / validate_report()
   cli.py                 `investment-system signals|candidates|costs|config|
                          validate-report|snapshot-save|snapshot-get|snapshot-list|
-                         fetch-quote|fetch-history|fetch-sentiment` commands
-config/data-sources.yaml  Finnhub/Yahoo/Alternative.me/CNN base URLs, headers,
-                         timeouts, and (Finnhub/CNN/Alternative.me) max data age
+                         fetch-quote|fetch-history|fetch-sentiment|fetch-macro` commands
+config/data-sources.yaml  Finnhub/Yahoo/Alternative.me/CNN/FRED base URLs, headers,
+                         timeouts, and max data age where applicable
 tests/                  Unit tests for every module above, plus tests/fixtures/prices.csv
                          and tests/fixtures/finnhub/, tests/fixtures/yahoo/,
-                         tests/fixtures/alternative_me/, tests/fixtures/cnn_fear_greed/
-                         (offline response fixtures for each ingestion adapter)
+                         tests/fixtures/alternative_me/, tests/fixtures/cnn_fear_greed/,
+                         tests/fixtures/fred/ (offline response fixtures per adapter)
 schemas/                First structural contract for frozen practice/live reports
 reports/practice/       Illustrative schema-shaped practice artifact only
 data/                   snapshots.sqlite3 lives here by default (gitignored)
@@ -62,12 +65,13 @@ docs/candidates/        Crypto-asset-inclusion-gate tracking per candidate
 The deterministic core (`indicators.py`, `costs.py`, `engine.py`'s CSV path,
 `validation.py`, `schema.py`, `reports.py`) makes no network calls and never
 will on its own — feed it a CSV/JSON, get the same output every time. As of
-`ingestion/`, the repository *also* has four opt-in adapters that make a real
+`ingestion/`, the repository *also* has five opt-in adapters that make a real
 network call: `investment-system fetch-quote <symbol>` (requires
 `FINNHUB_API_KEY`), `investment-system fetch-history <asset>` (Yahoo
-Finance, no key needed), and `investment-system fetch-sentiment
-equity|crypto` (CNN and Alternative.me, no key needed) — all only run when
-explicitly invoked. Nothing calls any of them automatically; nothing in the
+Finance, no key needed), `investment-system fetch-sentiment equity|crypto`
+(CNN and Alternative.me, no key needed), and `investment-system fetch-macro
+<indicator>` (FRED, requires `FRED_API_KEY`) — all only run when explicitly
+invoked. Nothing calls any of them automatically; nothing in the
 deterministic core depends on them existing. `fetch-history`'s output CSV,
 though, plugs directly into the existing CSV pipeline below with no code
 change — see [Data flow](#data-flow) and [Ingestion](ingestion.md).
@@ -162,6 +166,24 @@ config/data-sources.yaml
                                                         error on any IngestionError;
                                                         never touches rankings,
                                                         gates, or recommendations)
+
+config/data-sources.yaml
+  -> ingestion.data_sources.load_fred_config()  FredConfig (base URL, API-key env var,
+                                                  timeout, max data age in days)
+  -> ingestion.fred.fetch_series_latest(series_id, snapshot_store=...)
+       reads FRED_API_KEY from the environment (fails closed if unset)
+       -> HTTP GET with the key as a URL parameter (FRED has no header
+          alternative -- the constructed URL is never logged, see ingestion.md)
+       -> snapshots the raw response FIRST (evidence preserved even on failure)
+       -> then validates: parses JSON, walks past FRED's "." missing-value
+          marker to the latest real observation, rejects a value older than
+          max_age_days
+       -> returns a raw MacroObservation -- no regime label is computed
+  -> investment-system fetch-macro <indicator>  (mnemonic name -> FRED series ID
+                                                  via cli.py's _MACRO_SERIES; exits 1
+                                                  with a structured error on any
+                                                  IngestionError; never touches
+                                                  rankings, gates, or recommendations)
 ```
 
 See [Reports and validation](reports.md) for the report contract,
@@ -184,7 +206,7 @@ larger system: fundamental/regime scoring, sentiment ingestion, BTC BUY/SELL
 assessments, the MCP server, frozen JSON/Markdown reports, SQLite audit storage,
 benchmark simulation, and postmortems. Almost none of that exists in `src/` yet
 (the exceptions are the frozen-report write-once mechanism in `reports.py` and
-the four adapters in `ingestion/`) — this repository is still overwhelmingly
+the five adapters in `ingestion/`) — this repository is still overwhelmingly
 the "Phase 1: deterministic data foundation" slice. `candidates.py` assembles
 per-asset features but deliberately does **not** rank, score, or size
 anything — that step needs component weights and hard-gate thresholds the
@@ -196,8 +218,10 @@ does feed it (via `fetch-history`'s CSV output).
 `ingestion.alternative_me`/`ingestion.cnn_fear_greed` produce validated
 sentiment observations, but nothing currently assembles them into a report's
 `sentiment` section — no report-generation step exists yet (see
-[Reports and validation](reports.md)). Nothing calls any adapter
-automatically, and none touch rankings, gates, or recommendations.
+[Reports and validation](reports.md)). `ingestion.fred` produces raw macro
+numbers only — no code classifies them into a regime label. Nothing calls
+any adapter automatically, and none touch rankings, gates, or
+recommendations.
 
 ## CLI
 
@@ -223,4 +247,9 @@ investment-system fetch-history <asset> [--range WINDOW] [--output-dir DIR]
 investment-system fetch-sentiment equity|crypto        # CNN / Alternative.me; no key needed;
                                                         # exits 1 with a structured error on
                                                         # any failure
+investment-system fetch-macro <indicator>              # requires FRED_API_KEY; raw number
+                                                        # only, no regime label; indicator is
+                                                        # one of vix/yield_curve_10y2y/
+                                                        # credit_spread_ig/credit_spread_hy/
+                                                        # fed_funds_rate
 ```

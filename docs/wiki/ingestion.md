@@ -1,15 +1,15 @@
 # Ingestion
 
 `src/investment_system/ingestion/` holds live market-data adapters. There are
-currently **four**: Finnhub quotes, Yahoo Finance weekly candles, and two
-Fear & Greed sentiment feeds (Alternative.me for crypto, CNN for equities).
-These are the only pieces of code in the repository that make real network
-calls — everything else (indicators, costs, engine, validation, schema,
-reports, snapshots) stays offline and deterministic. Nothing here produces a
-ranking, a score, or a buy/sell recommendation, and nothing here changes any
-asset's hard-gate/risk status (BTCB2's `blake2b_gate` included) — it only
-produces a validated, provenance-tagged data point for something else to use
-later.
+currently **five**: Finnhub quotes, Yahoo Finance weekly candles, two Fear &
+Greed sentiment feeds (Alternative.me for crypto, CNN for equities), and a
+FRED macro-indicator fetcher. These are the only pieces of code in the
+repository that make real network calls — everything else (indicators,
+costs, engine, validation, schema, reports, snapshots) stays offline and
+deterministic. Nothing here produces a ranking, a score, or a buy/sell
+recommendation, and nothing here changes any asset's hard-gate/risk status
+(BTCB2's `blake2b_gate` included) — it only produces a validated,
+provenance-tagged data point for something else to use later.
 
 ## Design contract (every adapter should follow this)
 
@@ -23,7 +23,10 @@ later.
   fixture bytes or raises directly — see `tests/test_ingestion_finnhub.py`.
 - **The API key is a header, never the URL/query string** — so it can't end
   up in a logged URL, proxy log, browser history, or a snapshot's own
-  metadata.
+  metadata. **Exception: `ingestion.fred`**, whose provider only accepts the
+  key as a URL parameter (no header alternative exists). There, the adapter
+  instead guarantees the constructed URL is never included in any error
+  message, log line, or snapshot — see its module docstring.
 - **Snapshot the raw response before validating it.** Evidence of what the
   provider actually sent is preserved even when the response turns out to be
   malformed or stale and the call ultimately raises. See
@@ -161,6 +164,61 @@ Both fail closed on a reading older than a configured `max_age_seconds`
 24/7 markets), 4 days for equities (accounts for a normal Friday-to-Monday
 weekend gap when equity markets are closed).
 
+## Macro indicators (`ingestion.fred`)
+
+The design doc's regime layer needs objective inputs (rates, volatility,
+credit conditions, liquidity), but synthesizing those into one of the seven
+regime labels (`Deteriorating`/`Stable`/`Improving`/`Structural Bull`/
+`Structural Breakout`/`Crisis`/`Unclear`) is a multi-factor judgment call,
+not a threshold formula the way the technical layer's "stretch" label is —
+researched 2026-09-07, before building anything, alongside a genuinely hard
+search for free fundamental-valuation data (no clean, current, free,
+machine-readable ASX index P/E/dividend-yield source was found at all; RBA
+publishes one, but only as PDF; a promising free US Shiller P/E10 dataset
+turned out to have been stale on its actual valuation columns since
+2023-06). `ingestion.fred` therefore fetches **raw numbers only** — it
+never classifies a regime label or a valuation label. That distillation
+stays a human/interactive-AI judgment call, matching this project's own
+architecture (`INVESTMENT_DECISION_SYSTEM.md`'s "qualitative analysis"
+layer), not something this adapter should invent.
+
+**FRED (Federal Reserve Bank of St. Louis)** is an official, free,
+documented API — instant free signup at
+`fredaccount.stlouisfed.org/apikeys`, same tier as Alpha Vantage/CoinGecko's
+demo keys. Unlike every other adapter here, **its key only works as a URL
+query parameter** — there is no header alternative — so `ingestion.fred`
+deliberately never includes the constructed request URL in any error
+message (see its module docstring and the design contract exception above).
+
+```python
+from investment_system.ingestion.fred import fetch_series_latest
+from investment_system.snapshots import SnapshotStore
+
+with SnapshotStore("data/snapshots.sqlite3") as store:
+    vix = fetch_series_latest("VIXCLS", snapshot_store=store)   # reads FRED_API_KEY
+    # vix.value, .date, .provider, .retrieved_at, .snapshot_id
+```
+
+FRED represents a missing/not-yet-published reading as the literal string
+`"."`, not `null` or an omitted field — confirmed against FRED's own
+documentation. `fetch_series_latest()` requests the 10 most recent
+observations and walks forward past any `"."` entries to the latest real
+value, rather than treating `"."` as zero or failing on the very next
+holiday/reporting lag. If every observation in that window is `"."`, or the
+latest real value is older than `max_age_days` (default 10, accounting for
+weekends/holidays across daily-frequency series), the fetch fails closed.
+
+The five series this project's regime inputs currently cover (mnemonic →
+FRED series ID, via `cli.py`'s `_MACRO_SERIES`):
+
+| Mnemonic | FRED series | What it is |
+|---|---|---|
+| `vix` | `VIXCLS` | CBOE Volatility Index |
+| `yield_curve_10y2y` | `T10Y2Y` | 10-year minus 2-year Treasury yield spread |
+| `credit_spread_ig` | `BAMLC0A0CM` | ICE BofA US Corporate (investment-grade) OAS |
+| `credit_spread_hy` | `BAMLH0A0HYM2` | ICE BofA US High Yield OAS |
+| `fed_funds_rate` | `DFF` | Effective federal funds rate |
+
 ## CLI
 
 ```bash
@@ -173,13 +231,18 @@ investment-system fetch-history BTC --range 15y     # override the per-asset def
 
 investment-system fetch-sentiment crypto            # Alternative.me, no key needed
 investment-system fetch-sentiment equity            # CNN, no key needed
+
+investment-system fetch-macro vix                   # FRED, requires FRED_API_KEY
+investment-system fetch-macro yield_curve_10y2y      # any of: vix, yield_curve_10y2y,
+                                                       # credit_spread_ig, credit_spread_hy,
+                                                       # fed_funds_rate
 ```
 
-`fetch-quote`/`fetch-sentiment` print the fetched value (or
+`fetch-quote`/`fetch-sentiment`/`fetch-macro` print the fetched value (or
 `{"error": "...", "message": "..."}`) and exit `1` on any `IngestionError` —
 this is the "deterministic callable/CLI boundary" a scheduler (e.g. a Fedora
 systemd timer) can invoke without importing any adapter module directly or
-knowing anything about a provider's response shape. **None of the four
+knowing anything about a provider's response shape. **None of the five
 adapters are wired into any systemd unit yet** — that's Fedora-deployment
 scope, not this module's.
 
@@ -217,9 +280,17 @@ per-asset provider table, well past that point.
   [`docs/candidates/BTCB2.md`](../candidates/BTCB2.md) for BTCB2's current
   status against the crypto asset inclusion gate.
 - **Not called automatically by anything.** No cron/systemd/CLI-chain invokes
-  `fetch-quote`, `fetch-history`, or `fetch-sentiment` yet; all are
-  manual/scriptable commands today, and none feed `reports/`, rankings, or
-  gates.
+  `fetch-quote`, `fetch-history`, `fetch-sentiment`, or `fetch-macro` yet;
+  all are manual/scriptable commands today, and none feed `reports/`,
+  rankings, or gates.
+- **No fundamental valuation ingestion.** No free, current, machine-readable
+  source was found for ASX index-level valuation data (P/E, dividend
+  yield) — see the "Macro indicators" section above. This layer stays a
+  qualitative/interactive-AI judgment call for now, not an automated one.
+- **No regime classifier.** `ingestion.fred` fetches raw numbers only; no
+  code anywhere maps them to one of the seven regime labels — that
+  synthesis is deliberately left to a human/interactive-AI review, not
+  invented as a formula here.
 - **Yahoo's and CNN's endpoints are unofficial and undocumented** — no ToS
   support, no SLA, no guarantee either won't change or start rate-limiting
   without notice. Used because each is empirically the only free source

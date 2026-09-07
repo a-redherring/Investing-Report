@@ -105,3 +105,26 @@ def load_cnn_fear_greed_config(path: str | Path | None = None) -> CnnFearGreedCo
         timeout_seconds=float(data.get("timeout_seconds", 10)),
         max_age_seconds=float(data.get("max_age_seconds", 345600)),
     )
+
+
+@dataclass(frozen=True)
+class FredConfig:
+    provider: str
+    base_url: str
+    api_key_env_var: str
+    timeout_seconds: float
+    max_age_days: float
+
+
+def load_fred_config(path: str | Path | None = None) -> FredConfig:
+    sources = load_data_sources_config(path)
+    data = sources.get("fred")
+    if not data:
+        raise IngestionConfigError("config/data-sources.yaml has no 'fred' source configured")
+    return FredConfig(
+        provider=str(data["provider"]),
+        base_url=str(data["base_url"]).rstrip("/"),
+        api_key_env_var=str(data["api_key_env_var"]),
+        timeout_seconds=float(data.get("timeout_seconds", 10)),
+        max_age_days=float(data.get("max_age_days", 10)),
+    )

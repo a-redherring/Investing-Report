@@ -188,6 +188,14 @@ The regime layer combines measurable conditions that are not captured by valuati
 
 Regime claims require dated evidence and should state what would falsify them.
 
+`ingestion.fred` (see [`docs/wiki/ingestion.md`](docs/wiki/ingestion.md))
+fetches raw objective numbers for five of these inputs — VIX, the 10Y/2Y
+yield spread, investment-grade and high-yield credit spreads, and the fed
+funds rate — from FRED, an official free API. It deliberately does **not**
+classify a regime label: synthesizing multiple indicators into one of the
+seven labels above is exactly the qualitative judgment call this section
+describes, not a formula to hardcode.
+
 ## Sentiment
 
 The report includes two distinct sentiment series:
@@ -1013,6 +1021,20 @@ Data sources/times, completed checks, warnings, commit, snapshot, and report has
   direction (2026-09-07) since none of the crypto asset inclusion gate's
   criteria actually depend on naming any specific exchange. BTCB2's
   candidacy tracking itself is unaffected.
+- Deterministic feature assembly (`candidates.py`) is built; **scoring and
+  ranking are deliberately deferred**, operator decision 2026-09-07, pending
+  component weights and hard-gate/sizing-tier thresholds (see "Remaining
+  questions" #8, #9) — building those on invented numbers would be exactly
+  the kind of silent guess this project's fail-closed design exists to
+  prevent.
+- Macro-indicator provider for the regime layer's objective inputs: **FRED**
+  (an official free API). It fetches raw numbers only (VIX, yield spread,
+  credit spreads, fed funds rate) — no code classifies a regime label from
+  them, and no free, current, machine-readable source was found for
+  fundamental valuation data (ASX index P/E/dividend yield) at all. Both
+  layers stay a qualitative/interactive-AI judgment call for now, matching
+  this document's own original architecture rather than a gap to close.
+  See [Ingestion](docs/wiki/ingestion.md).
 
 ### Remaining questions
 

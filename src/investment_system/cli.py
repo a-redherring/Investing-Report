@@ -14,6 +14,7 @@ from .ingestion.alternative_me import fetch_crypto_fear_greed
 from .ingestion.cnn_fear_greed import fetch_equity_fear_greed
 from .ingestion.errors import IngestionError
 from .ingestion.finnhub import fetch_quote
+from .ingestion.fred import fetch_series_latest as fetch_fred_series_latest
 from .ingestion.yahoo import fetch_weekly_history as fetch_yahoo_weekly_history
 from .snapshots import DEFAULT_DB_PATH, SnapshotStore
 from .reports import freeze_report
@@ -21,6 +22,17 @@ from .reports import freeze_report
 _SENTIMENT_FETCHERS = {
     "equity": fetch_equity_fear_greed,
     "crypto": fetch_crypto_fear_greed,
+}
+
+# Mnemonic names for the FRED series this project's regime-input set covers
+# (see INVESTMENT_DECISION_SYSTEM.md's Regime section / docs/wiki/ingestion.md).
+# These are raw numbers only -- nothing here classifies a regime label.
+_MACRO_SERIES: dict[str, str] = {
+    "vix": "VIXCLS",
+    "yield_curve_10y2y": "T10Y2Y",
+    "credit_spread_ig": "BAMLC0A0CM",
+    "credit_spread_hy": "BAMLH0A0HYM2",
+    "fed_funds_rate": "DFF",
 }
 
 # Only assets with an unambiguous, already-verified provider mapping are
@@ -99,6 +111,10 @@ def main() -> None:
     fetch_sentiment.add_argument("kind", choices=sorted(_SENTIMENT_FETCHERS), help="which sentiment series to fetch")
     fetch_sentiment.add_argument("--db", default=None, help=f"snapshot database path (default: {DEFAULT_DB_PATH}, or $INVESTMENT_SYSTEM_SNAPSHOT_DB if set)")
 
+    fetch_macro = sub.add_parser("fetch-macro", help="fetch, validate, and snapshot a FRED macro-indicator reading (raw number only, not a regime label)")
+    fetch_macro.add_argument("indicator", choices=sorted(_MACRO_SERIES), help="which macro indicator to fetch")
+    fetch_macro.add_argument("--db", default=None, help=f"snapshot database path (default: {DEFAULT_DB_PATH}, or $INVESTMENT_SYSTEM_SNAPSHOT_DB if set)")
+
     args = parser.parse_args()
 
     if args.command == "signals":
@@ -174,6 +190,15 @@ def main() -> None:
         try:
             with SnapshotStore(db_path) as store:
                 result = asdict(fetcher(snapshot_store=store))
+        except IngestionError as exc:
+            print(json.dumps({"error": type(exc).__name__, "message": str(exc)}, indent=2, sort_keys=True))
+            sys.exit(1)
+    elif args.command == "fetch-macro":
+        db_path = args.db or os.environ.get("INVESTMENT_SYSTEM_SNAPSHOT_DB") or str(DEFAULT_DB_PATH)
+        series_id = _MACRO_SERIES[args.indicator]
+        try:
+            with SnapshotStore(db_path) as store:
+                result = asdict(fetch_fred_series_latest(series_id, snapshot_store=store))
         except IngestionError as exc:
             print(json.dumps({"error": type(exc).__name__, "message": str(exc)}, indent=2, sort_keys=True))
             sys.exit(1)

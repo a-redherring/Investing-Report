@@ -41,6 +41,13 @@ specification alone.
   data source yet). Deliberately **not** a ranking — no score, sizing, or
   rank is decided. See `candidates.py`'s own module docstring and the
   2026-09-07 [changelog](changelog.md) entry for the reasoning.
+- A FRED macro-indicator fetcher (`ingestion.fred`) covering VIX, the
+  10Y/2Y yield spread, IG/HY credit spreads, and the fed funds rate — raw
+  numbers only, feeding a future human/AI regime judgment. No free,
+  current, machine-readable source was found for fundamental valuation
+  data (ASX index P/E/dividend yield); that layer, and regime
+  classification itself, stay qualitative for now — see [Ingestion](ingestion.md)
+  and the 2026-09-07 [changelog](changelog.md) entry.
 
 ## Next build sequence
 

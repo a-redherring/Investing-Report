@@ -22,3 +22,9 @@ sources:
     referer: "https://www.cnn.com/markets/fear-and-greed"
     timeout_seconds: 10
     max_age_seconds: 345600
+  fred:
+    provider: "FRED (Federal Reserve Bank of St. Louis)"
+    base_url: "https://api.stlouisfed.org/fred"
+    api_key_env_var: "FRED_API_KEY"
+    timeout_seconds: 10
+    max_age_days: 10
