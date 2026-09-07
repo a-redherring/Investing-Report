@@ -3,6 +3,60 @@
 Dated log of material changes to code behavior (not every commit — just things a
 future reader would otherwise have to discover by diffing). Newest first.
 
+## 2026-09-07 — deterministic feature assembly (`candidates.py`); scoring/ranking deliberately deferred
+
+Started roadmap item 4 ("Build deterministic feature assembly, scoring,
+ranking, and draft-report generation"), but split it: feature assembly is
+built; scoring/ranking is explicitly deferred pending operator decisions on
+component weights and hard-gate/sizing-tier thresholds (open questions #8,
+#9). Confirmed with the operator before writing any code — building a
+scoring formula on invented numbers would be exactly the kind of silent
+guess this project's fail-closed design exists to prevent.
+
+**New `candidates.assemble_candidates()`**: one `Candidate` record per
+`config/universe.yaml` asset (`symbol`, `currency`, `core`, `technical`,
+`valuation`, `regime`, `confidence`, `hard_gates_passed`, `rationale`),
+combining the real technical signal from `indicators.calculate()` (when
+price data exists for that asset) with an honest placeholder for the two
+required layers that have no data source at all yet — fundamental
+valuation (`"Insufficient Data"`) and regime (`"Unclear"`). New CLI:
+`investment-system candidates <csv>` (`signals`' sibling, printing per-asset
+`Candidate` records instead of raw `TechnicalSnapshot`s).
+
+**A real design decision, not just plumbing**: since valuation and regime
+are structurally absent — not merely uncertain, but never computed by any
+code in this repository — every candidate's `confidence` is forced to
+`"insufficient"` and `hard_gates_passed` to `False`, regardless of how
+complete the technical data is. This is the direct, honest consequence of
+the design doc's own rule that missing critical data forces no trade,
+applied to 2 of the 3 required layers being entirely unbuilt; it is not a
+threshold anyone invented, and it flips automatically once valuation/regime
+providers exist. Locked in with a regression test
+(`test_confidence_and_hard_gates_are_insufficient_even_with_full_technical_history`)
+using a synthetic 210-week series with complete 200-week-MA history, to
+make sure a *complete* technical signal is never mistaken for a *complete*
+analysis.
+
+Every configured universe asset gets an entry regardless of whether the
+given CSV has price data for it — a missing asset produces
+`technical: null` and an explanatory rationale, not a silent omission.
+Verified end-to-end against real fetched data: ran `fetch-history` for all
+8 price-bearing assets, merged the output, and confirmed `candidates`
+produces sane technical fields for each (real trend/stretch/drawdown) while
+`CASH` (which never has a price series) correctly shows `technical: null`.
+
+**3 new tests** (`tests/test_candidates.py`). Full suite: 91 passed. No new
+dependency.
+
+**What's still not built**: scoring (component weights), hard gates beyond
+the data-sufficiency ones already forced above, sizing-tier thresholds,
+ranking, and draft-report generation — all deferred to the same open
+questions. `candidates.py` produces the *input* a future scoring step would
+consume; it is not itself part of the frozen-report schema (the schema's
+`rankings[]` shape has no `valuation`/`regime`/`technical` sub-fields —
+those get distilled into `confidence` + `rationale` + `hard_gates_passed`
+only once a real scoring step exists).
+
 ## 2026-09-07 — sentiment ingestion (Alternative.me crypto, CNN equity)
 
 Roadmap item 3 ("Decide and document equity/crypto sentiment providers,

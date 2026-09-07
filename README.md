@@ -18,6 +18,7 @@ python3 -m venv .venv
 .venv/bin/pip install -e '.[dev]'
 .venv/bin/python -m pytest -q
 .venv/bin/investment-system signals tests/fixtures/prices.csv
+.venv/bin/investment-system candidates tests/fixtures/prices.csv
 ./scripts/fedora-healthcheck.sh
 ```
 
@@ -58,10 +59,11 @@ Implemented foundations include weekly indicator calculations, ASX brokerage
 costs, strict price/report validation, schema validation, append-only
 snapshots, explicit-confirmation report freezing, the Finnhub single-quote
 adapter, Yahoo Finance weekly-history ingestion for all 8 price-bearing
-universe assets, and both required sentiment feeds (Alternative.me for
-crypto, CNN for equities) (see the [roadmap](docs/wiki/roadmap.md)). BTCB2
-ingestion, scoring, report generation, and scheduling are not yet
-implemented.
+universe assets, both required sentiment feeds (Alternative.me for crypto,
+CNN for equities), and deterministic feature assembly (`candidates`, one
+technical-plus-placeholder record per asset — not a ranking) (see the
+[roadmap](docs/wiki/roadmap.md)). Scoring, ranking, BTCB2 ingestion, report
+generation, and scheduling are not yet implemented.
 
 Secrets belong in the process environment or an external server-side secrets
 file. Do not commit `.env` files or API keys; `.env.example` documents names

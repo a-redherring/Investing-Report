@@ -35,6 +35,12 @@ specification alone.
   `SentimentObservation` — see [Ingestion](ingestion.md) and the 2026-09-07
   [changelog](changelog.md) entry. No report-generation step exists yet to
   call them automatically.
+- Deterministic feature assembly (`candidates.assemble_candidates()`): one
+  `Candidate` record per universe asset, combining the real technical
+  signal with an honest placeholder for valuation/regime (neither has a
+  data source yet). Deliberately **not** a ranking — no score, sizing, or
+  rank is decided. See `candidates.py`'s own module docstring and the
+  2026-09-07 [changelog](changelog.md) entry for the reasoning.
 
 ## Next build sequence
 
@@ -53,8 +59,14 @@ specification alone.
    above. Remaining: assessment rules for how a sentiment reading actually
    modifies a ranking/BTC decision (still open, tracked as a "remaining
    question" in `INVESTMENT_DECISION_SYSTEM.md`).
-4. Build deterministic feature assembly, scoring, ranking, and draft-report
-   generation against the existing schema and practice fixture.
+4. ~~Build deterministic feature assembly~~, scoring, ranking, and
+   draft-report generation against the existing schema and practice
+   fixture. Feature assembly is done (`candidates.py`, see above).
+   Scoring/ranking remains explicitly deferred: it needs component weights
+   and hard-gate/sizing-tier thresholds the operator hasn't set (open
+   questions #8, #9 in `INVESTMENT_DECISION_SYSTEM.md`) — building it on
+   invented numbers would be exactly the kind of silent guess this
+   project's fail-closed design exists to prevent.
 5. Add a `monday-run` orchestration command that snapshots inputs, validates
    freshness and universe coverage, writes a draft, and never freezes without
    explicit operator confirmation.

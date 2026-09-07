@@ -9,6 +9,9 @@ config/
 src/investment_system/
   config.py            Loads and type-checks the YAML config files above
   indicators.py         SMA/EMA/RSI/MACD, stretch/trend classification, MA slope
+  candidates.py          assemble_candidates(): one feature record per universe
+                         asset (technical signal + honest valuation/regime
+                         placeholders) — NOT a ranking; see ingestion.md/roadmap.md
   costs.py              ASX brokerage fee calculation (pure function, no I/O)
   validation.py         Fail-closed CSV/report input validation and structured issues
   schema.py              Loads schemas/frozen-report.schema.json, runs JSON Schema
@@ -37,9 +40,9 @@ src/investment_system/
   engine.py             CSV loading, wires indicators.py + config.py together,
                          exposes calculate_signals() / cost_table() / config_snapshot()
                          / validate_report()
-  cli.py                 `investment-system signals|costs|config|validate-report|
-                         snapshot-save|snapshot-get|snapshot-list|fetch-quote|
-                         fetch-history|fetch-sentiment` commands
+  cli.py                 `investment-system signals|candidates|costs|config|
+                         validate-report|snapshot-save|snapshot-get|snapshot-list|
+                         fetch-quote|fetch-history|fetch-sentiment` commands
 config/data-sources.yaml  Finnhub/Yahoo/Alternative.me/CNN base URLs, headers,
                          timeouts, and (Finnhub/CNN/Alternative.me) max data age
 tests/                  Unit tests for every module above, plus tests/fixtures/prices.csv
@@ -77,6 +80,16 @@ CSV (asset,date,close)
                                    (asset, date) rows and invalid prices
   -> indicators.calculate()      one TechnicalSnapshot per asset
   -> engine.calculate_signals()  dict of asset -> snapshot fields, for CLI/JSON output
+
+CSV (asset,date,close) + config/universe.yaml
+  -> candidates.assemble_candidates()  one Candidate per universe asset (technical
+                                         signal if price data exists, else None;
+                                         valuation="Insufficient Data", regime="Unclear"
+                                         always, since neither has a data source yet;
+                                         confidence="insufficient", hard_gates_passed=False
+                                         always, for the same reason)
+  -> investment-system candidates <csv>  NOT a ranking -- no rank, sizing, or
+                                          new_money_action decided; see roadmap.md
 
 config/*.yaml
   -> config.load_model_config()  ModelConfig (brokerage terms, cash yield)
@@ -172,7 +185,10 @@ assessments, the MCP server, frozen JSON/Markdown reports, SQLite audit storage,
 benchmark simulation, and postmortems. Almost none of that exists in `src/` yet
 (the exceptions are the frozen-report write-once mechanism in `reports.py` and
 the four adapters in `ingestion/`) — this repository is still overwhelmingly
-the "Phase 1: deterministic data foundation" slice. Don't assume any
+the "Phase 1: deterministic data foundation" slice. `candidates.py` assembles
+per-asset features but deliberately does **not** rank, score, or size
+anything — that step needs component weights and hard-gate thresholds the
+operator hasn't decided yet (see [Roadmap](roadmap.md)). Don't assume any
 scoring/ranking behavior is implemented; check `src/investment_system/`
 directly. `ingestion.finnhub.fetch_quote()` produces one validated quote — it
 does not feed `indicators.calculate()`. `ingestion.yahoo.fetch_weekly_history()`
@@ -187,6 +203,8 @@ automatically, and none touch rankings, gates, or recommendations.
 
 ```bash
 investment-system signals <path-to-weekly-csv.csv>   # per-asset TechnicalSnapshot as JSON
+investment-system candidates <path-to-weekly-csv.csv>  # per-asset Candidate feature record;
+                                                        # NOT a ranking -- no scoring yet
 investment-system costs                               # fee schedule for A$999/2,000/4,000
 investment-system config                              # parsed model config + universe, as JSON
 investment-system validate-report <path-to-report.json> [--no-universe-check]

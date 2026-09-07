@@ -8,6 +8,7 @@ import sys
 from dataclasses import asdict
 from pathlib import Path
 
+from .candidates import assemble_candidates
 from .engine import calculate_signals, config_snapshot, cost_table, validate_report
 from .ingestion.alternative_me import fetch_crypto_fear_greed
 from .ingestion.cnn_fear_greed import fetch_equity_fear_greed
@@ -51,6 +52,9 @@ def main() -> None:
 
     signals = sub.add_parser("signals", help="calculate deterministic signals from weekly CSV")
     signals.add_argument("csv")
+
+    candidates = sub.add_parser("candidates", help="assemble one feature record per universe asset from weekly CSV (not a ranking)")
+    candidates.add_argument("csv")
 
     sub.add_parser("costs", help="show indicative fee schedule")
     sub.add_parser("config", help="show parsed model configuration and universe")
@@ -99,6 +103,8 @@ def main() -> None:
 
     if args.command == "signals":
         result = calculate_signals(args.csv)
+    elif args.command == "candidates":
+        result = {symbol: asdict(candidate) for symbol, candidate in assemble_candidates(args.csv).items()}
     elif args.command == "costs":
         result = cost_table()
     elif args.command == "config":
